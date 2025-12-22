@@ -56,6 +56,13 @@ const TREE_HEIGHT = 110;
 const FINISH_WIDTH = 400;
 const FINISH_HEIGHT = 200;
 
+// Preload start animation video
+const startVideo = document.createElement('video');
+startVideo.src = 'startanim.mp4';
+startVideo.preload = 'auto';
+startVideo.muted = true; // Muted to allow autoplay
+startVideo.playsInline = true;
+
 // Game state
 const gameState = {
     speed: 3,
@@ -65,13 +72,20 @@ const gameState = {
     keys: {},
     gameOver: false,
     // Race mode
-    phase: 'menu', // 'menu', 'racing', 'finished', 'crashed'
+    phase: 'menu', // 'menu', 'startanim', 'racing', 'finished', 'crashed'
     distance: 0,
     raceStartTime: 0,
     raceTime: 0,
     playerName: '',
     nameSubmitted: false
 };
+
+// When video ends, start the actual race
+startVideo.addEventListener('ended', () => {
+    if (gameState.phase === 'startanim') {
+        startRace();
+    }
+});
 
 // Background - two large tiles that cycle
 const background = {
@@ -109,6 +123,9 @@ let leaderboardData = [];
 let glimmerOffset = -100; // Start position off-screen left
 const GLIMMER_SPEED = 3;
 const GLIMMER_WIDTH = 80;
+
+// Start prompt pulse animation
+let pulseTime = 0;
 
 // Input handling
 document.addEventListener('keydown', (e) => {
@@ -530,19 +547,18 @@ function drawMenuScreen() {
 
     ctx.textAlign = 'center';
 
-    // Subtitle
-    ctx.font = '24px Fibberish';
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 3;
-    ctx.strokeText(`Race to ${RACE_DISTANCE}m as fast as you can!`, CANVAS_WIDTH / 2, 210);
-    ctx.fillText(`Race to ${RACE_DISTANCE}m as fast as you can!`, CANVAS_WIDTH / 2, 210);
+    // Start prompt with pulse animation
+    pulseTime += 0.08;
+    const pulseScale = 1 + Math.sin(pulseTime) * 0.1; // Scale between 0.9 and 1.1
+    const baseFontSize = 44;
+    const fontSize = Math.round(baseFontSize * pulseScale);
 
-    // Start prompt
-    ctx.font = 'bold 34px Fibberish';
+    ctx.font = `bold ${fontSize}px Fibberish`;
     ctx.fillStyle = '#e74c3c';
-    ctx.strokeText('Press SPACE to start', CANVAS_WIDTH / 2, 300);
-    ctx.fillText('Press SPACE to start', CANVAS_WIDTH / 2, 300);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.strokeText('Press SPACE to start', CANVAS_WIDTH / 2, 250);
+    ctx.fillText('Press SPACE to start', CANVAS_WIDTH / 2, 250);
 
     // Leaderboard placeholder
     ctx.font = 'bold 26px Fibberish';
@@ -665,6 +681,12 @@ function drawCrashScreen() {
     ctx.textAlign = 'left';
 }
 
+// Draw start animation video
+function drawStartAnim() {
+    // Draw video frame to canvas, scaled to fit
+    ctx.drawImage(startVideo, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+}
+
 // Main render function
 function render() {
     // Clear canvas
@@ -673,6 +695,8 @@ function render() {
     // Draw based on game phase
     if (gameState.phase === 'menu') {
         drawMenuScreen();
+    } else if (gameState.phase === 'startanim') {
+        drawStartAnim();
     } else {
         // Draw game world
         drawBackground();
@@ -792,10 +816,12 @@ function updateCrashed() {
 document.addEventListener('keydown', (e) => {
     const key = e.key;
 
-    // Menu: SPACE to start
+    // Menu: SPACE to start animation
     if (gameState.phase === 'menu' && key === ' ') {
         e.preventDefault();
-        startRace();
+        gameState.phase = 'startanim';
+        startVideo.currentTime = 0;
+        startVideo.play();
         return;
     }
 

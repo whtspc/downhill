@@ -10,7 +10,7 @@ const MAX_SPEED_STRAIGHT = 20; // Max speed when going straight
 const MAX_SPEED_TURNING = 16; // Max speed at full turn angle
 const MAX_SKI_ANGLE = Math.PI / 3; // 60 degrees
 const TURN_SPEED_PENALTY = 0.3; // How much turning reduces downhill speed (0 = none, 1 = full stop at max angle)
-const RACE_DISTANCE = 10000; // Distance to finish the race
+const RACE_DISTANCE = 20000; // Distance to finish the race
 
 // Skier dimensions
 const BODY_WIDTH = 32;

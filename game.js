@@ -2,6 +2,11 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Debug mode - enable with ?debug=1 in URL
+const urlParams = new URLSearchParams(window.location.search);
+const DEBUG_MODE = urlParams.get('debug') === '1';
+let collisionEnabled = true; // Can be toggled with 'C' key in debug mode
+
 // Load character sprites
 const sprites = {
     vooruit: new Image(),
@@ -52,9 +57,9 @@ const SKI_SPACING = 20;
 const TREE_WIDTH = 90;
 const TREE_HEIGHT = 110;
 
-// Finish line dimensions
-const FINISH_WIDTH = 400;
-const FINISH_HEIGHT = 200;
+// Finish line dimensions (full width, maintain aspect ratio)
+const FINISH_WIDTH = CANVAS_WIDTH;
+const FINISH_HEIGHT = 300; // Adjusted to maintain ratio with wider width
 
 // Preload start animation video
 const startVideo = document.createElement('video');
@@ -65,7 +70,7 @@ startVideo.playsInline = true;
 
 // Game state
 const gameState = {
-    speed: 3,
+    speed: 16,
     skiAngle: 0,
     skierX: CANVAS_WIDTH / 2,
     skierY: CANVAS_HEIGHT / 3,
@@ -198,8 +203,19 @@ function update() {
         finishLineY -= downhillSpeed;
     }
 
-    // Check for race completion (when skier crosses finish line)
-    if (finishLineY !== null && finishLineY < gameState.skierY) {
+    // Auto-guide player towards the finish line empty spot (x=200) when approaching
+    const FINISH_TARGET_X = 200; // The empty spot in the finish line
+    if (distanceToFinish < 400) {
+        // Gradually guide player towards the target X position
+        const guideFactor = 0.1; // How strongly to guide (higher = faster)
+        const diff = FINISH_TARGET_X - gameState.skierX;
+        gameState.skierX += diff * guideFactor;
+        // Also gradually straighten the ski angle
+        gameState.skiAngle *= 0.95;
+    }
+
+    // Check for race completion (when skier is well past finish line)
+    if (finishLineY !== null && finishLineY < gameState.skierY - 150) {
         gameState.phase = 'finished';
         return; // Stop updating
     }
@@ -276,24 +292,26 @@ function update() {
     }
 
     // Collision detection with trees - circular hitboxes on bottom half of sprites
-    const treeRadius = TREE_WIDTH / 3; // ~30px - covers bottom half of tree
-    const skierRadius = 25; // Covers bottom half of 80px sprite
-    for (let tree of trees) {
-        // Tree hitbox center is in the bottom half of the tree sprite
-        const treeHitX = tree.x;
-        const treeHitY = tree.y + TREE_HEIGHT / 4;
+    if (collisionEnabled) {
+        const treeRadius = TREE_WIDTH / 3; // ~30px - covers bottom half of tree
+        const skierRadius = 25; // Covers bottom half of 80px sprite
+        for (let tree of trees) {
+            // Tree hitbox center is in the bottom half of the tree sprite
+            const treeHitX = tree.x;
+            const treeHitY = tree.y + TREE_HEIGHT / 4;
 
-        // Skier hitbox center is in the bottom half of the skier sprite
-        const skierHitX = gameState.skierX;
-        const skierHitY = gameState.skierY + 15; // Offset down into bottom half
+            // Skier hitbox center is in the bottom half of the skier sprite
+            const skierHitX = gameState.skierX;
+            const skierHitY = gameState.skierY + 15; // Offset down into bottom half
 
-        // Check distance between hitbox centers
-        const dx = skierHitX - treeHitX;
-        const dy = skierHitY - treeHitY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance < treeRadius + skierRadius) {
-            gameState.gameOver = true;
-            gameState.phase = 'crashed';
+            // Check distance between hitbox centers
+            const dx = skierHitX - treeHitX;
+            const dy = skierHitY - treeHitY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < treeRadius + skierRadius) {
+                gameState.gameOver = true;
+                gameState.phase = 'crashed';
+            }
         }
     }
 }
@@ -456,6 +474,44 @@ function formatTime(ms) {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
 }
 
+// Draw debug overlay (collision boxes)
+function drawDebug() {
+    if (!DEBUG_MODE) return;
+
+    const treeRadius = TREE_WIDTH / 3;
+    const skierRadius = 25;
+
+    // Draw tree collision circles
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+    ctx.lineWidth = 2;
+    for (let tree of trees) {
+        const treeHitX = tree.x;
+        const treeHitY = tree.y + TREE_HEIGHT / 4;
+        ctx.beginPath();
+        ctx.arc(treeHitX, treeHitY, treeRadius, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    // Draw skier collision circle
+    ctx.strokeStyle = collisionEnabled ? 'rgba(0, 255, 0, 0.7)' : 'rgba(255, 255, 0, 0.7)';
+    ctx.lineWidth = 2;
+    const skierHitX = gameState.skierX;
+    const skierHitY = gameState.skierY + 15;
+    ctx.beginPath();
+    ctx.arc(skierHitX, skierHitY, skierRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Draw debug info text
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(5, CANVAS_HEIGHT - 60, 200, 55);
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('DEBUG MODE', 10, CANVAS_HEIGHT - 45);
+    ctx.fillText(`Collision: ${collisionEnabled ? 'ON' : 'OFF'} (press C to toggle)`, 10, CANVAS_HEIGHT - 28);
+    ctx.fillText(`Trees: ${trees.length}`, 10, CANVAS_HEIGHT - 11);
+}
+
 // Draw HUD
 function drawHUD() {
     ctx.fillStyle = '#333';
@@ -604,9 +660,6 @@ function drawLeaderboardTable(x, y) {
 
 // Draw finish screen
 function drawFinishScreen() {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
     ctx.textAlign = 'center';
     ctx.fillStyle = '#4CAF50';
     ctx.font = 'bold 56px Fibberish';
@@ -702,10 +755,11 @@ function render() {
         drawBackground();
         drawPisteBorders();
         drawTrails();
+        drawSkier(); // Draw skier before finish line so they go underneath
         drawFinishLine();
         drawTrees();
-        drawSkier();
         drawHUD();
+        drawDebug();
 
         // Draw overlay screens
         if (gameState.phase === 'finished') {
@@ -718,7 +772,7 @@ function render() {
 
 // Reset game state
 function resetGame() {
-    gameState.speed = 3;
+    gameState.speed = 16;
     gameState.skiAngle = 0;
     gameState.skierX = CANVAS_WIDTH / 2;
     gameState.gameOver = false;
@@ -743,7 +797,7 @@ function startRace() {
     gameState.playerName = '';
     gameState.nameSubmitted = false;
     gameState.gameOver = false;
-    gameState.speed = 3;
+    gameState.speed = 16;
     gameState.skiAngle = 0;
     gameState.skierX = CANVAS_WIDTH / 2;
     trees.length = 0;
@@ -815,6 +869,12 @@ function updateCrashed() {
 // Handle keyboard input for game control and name entry
 document.addEventListener('keydown', (e) => {
     const key = e.key;
+
+    // Debug: Toggle collision with C key
+    if (DEBUG_MODE && key.toLowerCase() === 'c') {
+        collisionEnabled = !collisionEnabled;
+        return;
+    }
 
     // Menu: SPACE to start animation
     if (gameState.phase === 'menu' && key === ' ') {

@@ -11,7 +11,9 @@ const sprites = {
     scherpeRechts: new Image(),
     sprongie: new Image(),
     vallen: new Image(),
-    tree: new Image()
+    tree: new Image(),
+    pisteBorder: new Image(),
+    finish: new Image()
 };
 
 sprites.vooruit.src = 'Character/Vooruit.png';
@@ -22,6 +24,8 @@ sprites.scherpeRechts.src = 'Character/Scherpe bocht naar rechts.png';
 sprites.sprongie.src = 'Character/Sprongie.png';
 sprites.vallen.src = 'Character/Vallen.png';
 sprites.tree.src = 'Piste/Boom sneeuw.png';
+sprites.pisteBorder.src = 'Piste/Zijkant piste.png';
+sprites.finish.src = 'Piste/Einde.png';
 
 // Constants - Portrait orientation
 const CANVAS_WIDTH = 600;
@@ -43,6 +47,10 @@ const SKI_SPACING = 20;
 // Tree dimensions
 const TREE_WIDTH = 90;
 const TREE_HEIGHT = 110;
+
+// Finish line dimensions
+const FINISH_WIDTH = 400;
+const FINISH_HEIGHT = 200;
 
 // Game state
 const gameState = {
@@ -86,6 +94,9 @@ const trailPoints = [];
 const trees = [];
 const TREE_SPAWN_DISTANCE = 350; // base distance between tree spawns
 let distanceSinceLastTree = 0;
+
+// Finish line position (Y coordinate on screen, null when not visible)
+let finishLineY = null;
 
 // Leaderboard data (fetched from API)
 let leaderboardData = [];
@@ -149,8 +160,20 @@ function update() {
     gameState.distance += downhillSpeed;
     gameState.raceTime = performance.now() - gameState.raceStartTime;
 
-    // Check for race completion
-    if (gameState.distance >= RACE_DISTANCE) {
+    // Spawn finish line when approaching the end
+    const distanceToFinish = RACE_DISTANCE - gameState.distance;
+    if (distanceToFinish < CANVAS_HEIGHT && finishLineY === null) {
+        // Spawn finish line below the screen
+        finishLineY = CANVAS_HEIGHT + distanceToFinish;
+    }
+
+    // Update finish line position
+    if (finishLineY !== null) {
+        finishLineY -= downhillSpeed;
+    }
+
+    // Check for race completion (when skier crosses finish line)
+    if (finishLineY !== null && finishLineY < gameState.skierY) {
         gameState.phase = 'finished';
         return; // Stop updating
     }
@@ -277,7 +300,7 @@ function drawBackground() {
     }
 }
 
-// Draw trees - green triangles
+// Draw trees
 function drawTrees() {
     for (let tree of trees) {
         ctx.drawImage(
@@ -288,6 +311,51 @@ function drawTrees() {
             TREE_HEIGHT
         );
     }
+}
+
+// Draw piste borders (scrolling with background)
+function drawPisteBorders() {
+    const borderWidth = 50; // Width of each border strip
+    const borderHeight = CANVAS_HEIGHT; // Match the tile height
+
+    // Draw left border - tile 1
+    ctx.drawImage(
+        sprites.pisteBorder,
+        0, 0, sprites.pisteBorder.width / 2, sprites.pisteBorder.height, // Source: left half of image
+        0, background.tile1Y, borderWidth, borderHeight // Dest: left side
+    );
+    // Draw left border - tile 2
+    ctx.drawImage(
+        sprites.pisteBorder,
+        0, 0, sprites.pisteBorder.width / 2, sprites.pisteBorder.height,
+        0, background.tile2Y, borderWidth, borderHeight
+    );
+
+    // Draw right border - tile 1
+    ctx.drawImage(
+        sprites.pisteBorder,
+        sprites.pisteBorder.width / 2, 0, sprites.pisteBorder.width / 2, sprites.pisteBorder.height, // Source: right half of image
+        CANVAS_WIDTH - borderWidth, background.tile1Y, borderWidth, borderHeight // Dest: right side
+    );
+    // Draw right border - tile 2
+    ctx.drawImage(
+        sprites.pisteBorder,
+        sprites.pisteBorder.width / 2, 0, sprites.pisteBorder.width / 2, sprites.pisteBorder.height,
+        CANVAS_WIDTH - borderWidth, background.tile2Y, borderWidth, borderHeight
+    );
+}
+
+// Draw finish line
+function drawFinishLine() {
+    if (finishLineY === null) return;
+
+    ctx.drawImage(
+        sprites.finish,
+        CANVAS_WIDTH / 2 - FINISH_WIDTH / 2,
+        finishLineY - FINISH_HEIGHT / 2,
+        FINISH_WIDTH,
+        FINISH_HEIGHT
+    );
 }
 
 // Draw ski trails - lines connecting consecutive points
@@ -365,28 +433,29 @@ function formatTime(ms) {
 // Draw HUD
 function drawHUD() {
     ctx.fillStyle = '#333';
-    ctx.font = '22px Fibberish';
+    ctx.textAlign = 'left';
 
-    // Speed display (left side)
+    // Speed display (left side, top)
+    ctx.font = '22px Fibberish';
     const speedText = `Speed: ${gameState.speed.toFixed(1)}`;
     ctx.fillText(speedText, 20, 35);
 
-    // Timer display (right side, large)
+    // Timer display (left side, below speed)
     ctx.font = 'bold 32px Fibberish';
-    ctx.textAlign = 'right';
     const timeText = formatTime(gameState.raceTime);
-    ctx.fillText(timeText, CANVAS_WIDTH - 20, 40);
+    ctx.fillText(timeText, 20, 70);
 
-    // Distance display (below timer)
+    // Distance display (right side)
+    ctx.textAlign = 'right';
     ctx.font = '22px Fibberish';
     const distanceText = `${Math.floor(gameState.distance)} / ${RACE_DISTANCE}m`;
-    ctx.fillText(distanceText, CANVAS_WIDTH - 20, 70);
+    ctx.fillText(distanceText, CANVAS_WIDTH - 20, 35);
 
-    // Progress bar
+    // Progress bar (right side, below distance)
     const barWidth = 150;
-    const barHeight = 8;
+    const barHeight = 10;
     const barX = CANVAS_WIDTH - 20 - barWidth;
-    const barY = 70;
+    const barY = 50;
     const progress = Math.min(gameState.distance / RACE_DISTANCE, 1);
 
     ctx.fillStyle = '#ddd';
@@ -550,7 +619,9 @@ function render() {
     } else {
         // Draw game world
         drawBackground();
+        drawPisteBorders();
         drawTrails();
+        drawFinishLine();
         drawTrees();
         drawSkier();
         drawHUD();
@@ -579,6 +650,7 @@ function resetGame() {
     trees.length = 0;
     trailPoints.length = 0;
     distanceSinceLastTree = 0;
+    finishLineY = null;
 }
 
 // Start the race
@@ -596,6 +668,7 @@ function startRace() {
     trees.length = 0;
     trailPoints.length = 0;
     distanceSinceLastTree = 0;
+    finishLineY = null;
 }
 
 // Game loop

@@ -13,7 +13,9 @@ const sprites = {
     vallen: new Image(),
     tree: new Image(),
     pisteBorder: new Image(),
-    finish: new Image()
+    finish: new Image(),
+    titleBackground: new Image(),
+    logo: new Image()
 };
 
 sprites.vooruit.src = 'Character/Vooruit.png';
@@ -26,6 +28,8 @@ sprites.vallen.src = 'Character/Vallen.png';
 sprites.tree.src = 'Piste/Boom sneeuw.png';
 sprites.pisteBorder.src = 'Piste/Zijkant piste.png';
 sprites.finish.src = 'Piste/Einde.png';
+sprites.titleBackground.src = 'screens/title.png';
+sprites.logo.src = 'screens/Logo voorkant.png';
 
 // Constants - Portrait orientation
 const CANVAS_WIDTH = 600;
@@ -468,39 +472,52 @@ function drawHUD() {
 
 // Draw menu screen
 function drawMenuScreen() {
-    // Semi-transparent overlay
-    ctx.fillStyle = 'rgba(240, 240, 240, 0.95)';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    // Draw title background image (scaled to fit canvas)
+    ctx.drawImage(sprites.titleBackground, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Draw logo at top center
+    const logoWidth = 400;
+    const logoHeight = logoWidth * (sprites.logo.height / sprites.logo.width) || 150;
+    ctx.drawImage(
+        sprites.logo,
+        CANVAS_WIDTH / 2 - logoWidth / 2,
+        30,
+        logoWidth,
+        logoHeight
+    );
 
     ctx.textAlign = 'center';
 
-    // Title
-    ctx.fillStyle = '#2c3e50';
-    ctx.font = 'bold 52px Fibberish';
-    ctx.fillText('BRIGHTFOX', CANVAS_WIDTH / 2, 120);
-    ctx.font = 'bold 36px Fibberish';
-    ctx.fillText('Ski Adventure', CANVAS_WIDTH / 2, 165);
-
     // Subtitle
     ctx.font = '24px Fibberish';
-    ctx.fillStyle = '#666';
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    ctx.strokeText(`Race to ${RACE_DISTANCE}m as fast as you can!`, CANVAS_WIDTH / 2, 210);
     ctx.fillText(`Race to ${RACE_DISTANCE}m as fast as you can!`, CANVAS_WIDTH / 2, 210);
 
     // Start prompt
     ctx.font = 'bold 34px Fibberish';
     ctx.fillStyle = '#e74c3c';
+    ctx.strokeText('Press SPACE to start', CANVAS_WIDTH / 2, 300);
     ctx.fillText('Press SPACE to start', CANVAS_WIDTH / 2, 300);
 
     // Controls
     ctx.font = '20px Fibberish';
-    ctx.fillStyle = '#888';
+    ctx.fillStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.strokeText('Controls:', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 130);
     ctx.fillText('Controls:', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 130);
-    ctx.fillText('A/D or ←/→ = Turn', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 100);
-    ctx.fillText('W/S or ↑/↓ = Brake/Accelerate', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 70);
+    ctx.strokeText('A/D or Arrow Keys = Turn', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 100);
+    ctx.fillText('A/D or Arrow Keys = Turn', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 100);
+    ctx.strokeText('W/S or Arrow Keys = Brake/Accelerate', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 70);
+    ctx.fillText('W/S or Arrow Keys = Brake/Accelerate', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 70);
 
     // Leaderboard placeholder
     ctx.font = 'bold 26px Fibberish';
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.strokeText('TOP 10', CANVAS_WIDTH / 2, 380);
     ctx.fillText('TOP 10', CANVAS_WIDTH / 2, 380);
 
     drawLeaderboardTable(CANVAS_WIDTH / 2 - 120, 400);
@@ -512,9 +529,12 @@ function drawMenuScreen() {
 function drawLeaderboardTable(x, y) {
     ctx.font = '18px Fibberish';
     ctx.textAlign = 'left';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
 
     if (leaderboardData.length === 0) {
-        ctx.fillStyle = '#999';
+        ctx.fillStyle = '#fff';
+        ctx.strokeText('No scores yet!', x + 60, y + 20);
         ctx.fillText('No scores yet!', x + 60, y + 20);
         return;
     }
@@ -522,12 +542,14 @@ function drawLeaderboardTable(x, y) {
     for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
         const entry = leaderboardData[i];
         const rowY = y + i * 28;
-        ctx.fillStyle = '#666';
+        ctx.fillStyle = '#fff';
+        ctx.strokeText(`${i + 1}.`, x, rowY);
         ctx.fillText(`${i + 1}.`, x, rowY);
-        ctx.fillStyle = '#333';
+        ctx.strokeText(entry.name, x + 35, rowY);
         ctx.fillText(entry.name, x + 35, rowY);
         ctx.fillStyle = '#e74c3c';
         ctx.textAlign = 'right';
+        ctx.strokeText(formatTime(entry.time), x + 240, rowY);
         ctx.fillText(formatTime(entry.time), x + 240, rowY);
         ctx.textAlign = 'left';
     }
@@ -619,7 +641,6 @@ function render() {
 
     // Draw based on game phase
     if (gameState.phase === 'menu') {
-        drawBackground();
         drawMenuScreen();
     } else {
         // Draw game world

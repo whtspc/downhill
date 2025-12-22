@@ -586,23 +586,28 @@ function drawFinishScreen() {
     ctx.textAlign = 'left';
 }
 
-// Draw crash screen
+// Draw crash screen (no overlay - game world stays visible)
 function drawCrashScreen() {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
     ctx.textAlign = 'center';
+
+    // Draw text with dark outline for visibility
     ctx.fillStyle = '#e74c3c';
     ctx.font = 'bold 64px Fibberish';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.strokeText('CRASHED!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
     ctx.fillText('CRASHED!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
 
     ctx.fillStyle = '#fff';
     ctx.font = '32px Fibberish';
+    ctx.lineWidth = 3;
+    ctx.strokeText(`Distance: ${Math.floor(gameState.distance)}m`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
     ctx.fillText(`Distance: ${Math.floor(gameState.distance)}m`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
 
     ctx.font = '26px Fibberish';
-    ctx.fillStyle = '#ccc';
-    ctx.fillText('Press R to try again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
+    ctx.fillStyle = '#fff';
+    ctx.strokeText('Press SPACE to try again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
+    ctx.fillText('Press SPACE to try again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
 
     ctx.textAlign = 'left';
 }
@@ -675,9 +680,60 @@ function startRace() {
 function gameLoop() {
     if (gameState.phase === 'racing') {
         update();
+    } else if (gameState.phase === 'crashed') {
+        updateCrashed();
     }
     render();
     requestAnimationFrame(gameLoop);
+}
+
+// Update physics during crash - skier slides and slows down
+function updateCrashed() {
+    // Gradually slow down
+    gameState.speed *= 0.98;
+    if (gameState.speed < 0.1) gameState.speed = 0;
+
+    // Continue moving based on last ski angle
+    const drift = Math.sin(-gameState.skiAngle) * gameState.speed * 0.8;
+    gameState.skierX += drift;
+
+    // Clamp skier to canvas bounds
+    const halfBody = BODY_WIDTH / 2 + SKI_SPACING;
+    if (gameState.skierX < halfBody) gameState.skierX = halfBody;
+    if (gameState.skierX > CANVAS_WIDTH - halfBody) gameState.skierX = CANVAS_WIDTH - halfBody;
+
+    // Scroll world
+    const downhillSpeed = gameState.speed;
+
+    // Update background tiles
+    background.tile1Y -= downhillSpeed;
+    background.tile2Y -= downhillSpeed;
+
+    if (background.tile1Y <= -background.tileHeight) {
+        background.tile1Y = background.tile2Y + background.tileHeight;
+    }
+    if (background.tile2Y <= -background.tileHeight) {
+        background.tile2Y = background.tile1Y + background.tileHeight;
+    }
+
+    background.tile1Y = Math.round(background.tile1Y);
+    background.tile2Y = Math.round(background.tile2Y);
+
+    // Scroll trail points
+    for (let point of trailPoints) {
+        point.leftY -= downhillSpeed;
+        point.rightY -= downhillSpeed;
+    }
+
+    // Scroll trees
+    for (let tree of trees) {
+        tree.y -= downhillSpeed;
+    }
+
+    // Remove off-screen trees
+    while (trees.length > 0 && trees[0].y < -TREE_HEIGHT) {
+        trees.shift();
+    }
 }
 
 // Handle keyboard input for game control and name entry
@@ -691,8 +747,9 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Crashed: R to restart
-    if (gameState.phase === 'crashed' && key.toLowerCase() === 'r') {
+    // Crashed: SPACE to restart
+    if (gameState.phase === 'crashed' && key === ' ') {
+        e.preventDefault();
         resetGame();
         return;
     }

@@ -10,6 +10,7 @@ const MAX_SPEED_STRAIGHT = 20; // Max speed when going straight
 const MAX_SPEED_TURNING = 16; // Max speed at full turn angle
 const MAX_SKI_ANGLE = Math.PI / 3; // 60 degrees
 const TURN_SPEED_PENALTY = 0.3; // How much turning reduces downhill speed (0 = none, 1 = full stop at max angle)
+const RACE_DISTANCE = 10000; // Distance to finish the race
 
 // Skier dimensions
 const BODY_WIDTH = 32;
@@ -29,7 +30,14 @@ const gameState = {
     skierX: CANVAS_WIDTH / 2,
     skierY: CANVAS_HEIGHT / 3,
     keys: {},
-    gameOver: false
+    gameOver: false,
+    // Race mode
+    phase: 'menu', // 'menu', 'racing', 'finished', 'crashed'
+    distance: 0,
+    raceStartTime: 0,
+    raceTime: 0,
+    playerName: '',
+    nameSubmitted: false
 };
 
 // Background - two large tiles that cycle
@@ -57,6 +65,9 @@ const trailPoints = [];
 const trees = [];
 const TREE_SPAWN_DISTANCE = 350; // base distance between tree spawns
 let distanceSinceLastTree = 0;
+
+// Leaderboard data (fetched from API)
+let leaderboardData = [];
 
 // Input handling
 document.addEventListener('keydown', (e) => {
@@ -112,6 +123,16 @@ function update() {
     // Calculate effective downhill speed (reduced when turning)
     const anglePenalty = 1 - Math.abs(Math.sin(gameState.skiAngle)) * TURN_SPEED_PENALTY;
     const downhillSpeed = gameState.speed * anglePenalty;
+
+    // Track distance and time
+    gameState.distance += downhillSpeed;
+    gameState.raceTime = performance.now() - gameState.raceStartTime;
+
+    // Check for race completion
+    if (gameState.distance >= RACE_DISTANCE) {
+        gameState.phase = 'finished';
+        return; // Stop updating
+    }
 
     // Update background tiles - scroll upward and round to avoid seams
     background.tile1Y -= downhillSpeed;
@@ -200,6 +221,7 @@ function update() {
         const skierRadius = BODY_WIDTH / 3; // Slightly smaller than body for forgiving collisions
         if (distance < treeTrunkRadius + skierRadius) {
             gameState.gameOver = true;
+            gameState.phase = 'crashed';
         }
     }
 }
@@ -307,38 +329,186 @@ function drawSkier() {
     ctx.restore();
 }
 
+// Format time as MM:SS.ms
+function formatTime(ms) {
+    const totalSeconds = ms / 1000;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    const milliseconds = Math.floor((ms % 1000) / 10);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
+}
+
 // Draw HUD
 function drawHUD() {
     ctx.fillStyle = '#333';
     ctx.font = '16px Arial';
 
-    // Speed display
+    // Speed display (left side)
     const speedText = `Speed: ${gameState.speed.toFixed(1)}`;
     ctx.fillText(speedText, 20, 30);
 
-    // Angle display (for debugging)
-    const angleDegrees = (gameState.skiAngle * 180 / Math.PI).toFixed(1);
-    const angleText = `Angle: ${angleDegrees}°`;
-    ctx.fillText(angleText, 20, 55);
+    // Timer display (right side, large)
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'right';
+    const timeText = formatTime(gameState.raceTime);
+    ctx.fillText(timeText, CANVAS_WIDTH - 20, 35);
 
-    // Controls hint
-    ctx.font = '12px Arial';
-    ctx.fillStyle = '#666';
-    ctx.fillText('Controls: A/D or Arrows = Turn/Speed', 20, CANVAS_HEIGHT - 20);
+    // Distance display (below timer)
+    ctx.font = '16px Arial';
+    const distanceText = `${Math.floor(gameState.distance)} / ${RACE_DISTANCE}m`;
+    ctx.fillText(distanceText, CANVAS_WIDTH - 20, 60);
+
+    // Progress bar
+    const barWidth = 150;
+    const barHeight = 8;
+    const barX = CANVAS_WIDTH - 20 - barWidth;
+    const barY = 70;
+    const progress = Math.min(gameState.distance / RACE_DISTANCE, 1);
+
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.fillStyle = '#4CAF50';
+    ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+
+    ctx.textAlign = 'left';
 }
 
-// Draw game over screen
-function drawGameOver() {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+// Draw menu screen
+function drawMenuScreen() {
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(240, 240, 240, 0.95)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 48px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+
+    // Title
+    ctx.fillStyle = '#2c3e50';
+    ctx.font = 'bold 64px Arial';
+    ctx.fillText('DOWNHILL', CANVAS_WIDTH / 2, 150);
+
+    // Subtitle
+    ctx.font = '20px Arial';
+    ctx.fillStyle = '#666';
+    ctx.fillText(`Race to ${RACE_DISTANCE}m as fast as you can!`, CANVAS_WIDTH / 2, 200);
+
+    // Start prompt
+    ctx.font = 'bold 28px Arial';
+    ctx.fillStyle = '#e74c3c';
+    ctx.fillText('Press SPACE to start', CANVAS_WIDTH / 2, 300);
+
+    // Controls
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#888';
+    ctx.fillText('Controls:', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 120);
+    ctx.fillText('A/D or ←/→ = Turn', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 95);
+    ctx.fillText('W/S or ↑/↓ = Brake/Accelerate', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 70);
+
+    // Leaderboard placeholder
+    ctx.font = 'bold 20px Arial';
+    ctx.fillStyle = '#333';
+    ctx.fillText('TOP 10', CANVAS_WIDTH / 2, 380);
+
+    drawLeaderboardTable(CANVAS_WIDTH / 2 - 120, 400);
+
+    ctx.textAlign = 'left';
+}
+
+// Draw leaderboard table
+function drawLeaderboardTable(x, y) {
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+
+    if (leaderboardData.length === 0) {
+        ctx.fillStyle = '#999';
+        ctx.fillText('No scores yet!', x + 60, y + 20);
+        return;
+    }
+
+    for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
+        const entry = leaderboardData[i];
+        const rowY = y + i * 22;
+        ctx.fillStyle = '#666';
+        ctx.fillText(`${i + 1}.`, x, rowY);
+        ctx.fillStyle = '#333';
+        ctx.fillText(entry.name, x + 30, rowY);
+        ctx.fillStyle = '#e74c3c';
+        ctx.textAlign = 'right';
+        ctx.fillText(formatTime(entry.time), x + 240, rowY);
+        ctx.textAlign = 'left';
+    }
+}
+
+// Draw finish screen
+function drawFinishScreen() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#4CAF50';
+    ctx.font = 'bold 48px Arial';
+    ctx.fillText('RACE COMPLETE!', CANVAS_WIDTH / 2, 150);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 36px Arial';
+    ctx.fillText(formatTime(gameState.raceTime), CANVAS_WIDTH / 2, 220);
+
+    if (!gameState.nameSubmitted) {
+        // Name input prompt
+        ctx.font = '20px Arial';
+        ctx.fillStyle = '#ccc';
+        ctx.fillText('Enter your name:', CANVAS_WIDTH / 2, 290);
+
+        // Name input box
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(CANVAS_WIDTH / 2 - 100, 305, 200, 40);
+        ctx.strokeStyle = '#4CAF50';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(CANVAS_WIDTH / 2 - 100, 305, 200, 40);
+
+        ctx.fillStyle = '#333';
+        ctx.font = '24px Arial';
+        ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 332);
+
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#999';
+        ctx.fillText('Press ENTER to submit (3-10 characters)', CANVAS_WIDTH / 2, 370);
+    } else {
+        ctx.font = '20px Arial';
+        ctx.fillStyle = '#4CAF50';
+        ctx.fillText('Score submitted!', CANVAS_WIDTH / 2, 300);
+    }
+
+    // Leaderboard
+    ctx.font = 'bold 20px Arial';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('TOP 10', CANVAS_WIDTH / 2, 420);
+    drawLeaderboardTable(CANVAS_WIDTH / 2 - 120, 450);
+
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#888';
+    ctx.fillText('Press R to race again', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 40);
+
+    ctx.textAlign = 'left';
+}
+
+// Draw crash screen
+function drawCrashScreen() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 48px Arial';
+    ctx.fillText('CRASHED!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '24px Arial';
+    ctx.fillText(`Distance: ${Math.floor(gameState.distance)}m`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
 
     ctx.font = '20px Arial';
-    ctx.fillText('Press R to restart', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+    ctx.fillStyle = '#ccc';
+    ctx.fillText('Press R to try again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
+
     ctx.textAlign = 'left';
 }
 
@@ -347,15 +517,24 @@ function render() {
     // Clear canvas
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Draw in order (back to front)
-    drawBackground();
-    drawTrails();
-    drawTrees();
-    drawSkier();
-    drawHUD();
+    // Draw based on game phase
+    if (gameState.phase === 'menu') {
+        drawBackground();
+        drawMenuScreen();
+    } else {
+        // Draw game world
+        drawBackground();
+        drawTrails();
+        drawTrees();
+        drawSkier();
+        drawHUD();
 
-    if (gameState.gameOver) {
-        drawGameOver();
+        // Draw overlay screens
+        if (gameState.phase === 'finished') {
+            drawFinishScreen();
+        } else if (gameState.phase === 'crashed') {
+            drawCrashScreen();
+        }
     }
 }
 
@@ -365,6 +544,29 @@ function resetGame() {
     gameState.skiAngle = 0;
     gameState.skierX = CANVAS_WIDTH / 2;
     gameState.gameOver = false;
+    gameState.phase = 'menu';
+    gameState.distance = 0;
+    gameState.raceTime = 0;
+    gameState.raceStartTime = 0;
+    gameState.playerName = '';
+    gameState.nameSubmitted = false;
+    trees.length = 0;
+    trailPoints.length = 0;
+    distanceSinceLastTree = 0;
+}
+
+// Start the race
+function startRace() {
+    gameState.phase = 'racing';
+    gameState.distance = 0;
+    gameState.raceStartTime = performance.now();
+    gameState.raceTime = 0;
+    gameState.playerName = '';
+    gameState.nameSubmitted = false;
+    gameState.gameOver = false;
+    gameState.speed = 3;
+    gameState.skiAngle = 0;
+    gameState.skierX = CANVAS_WIDTH / 2;
     trees.length = 0;
     trailPoints.length = 0;
     distanceSinceLastTree = 0;
@@ -372,17 +574,48 @@ function resetGame() {
 
 // Game loop
 function gameLoop() {
-    if (!gameState.gameOver) {
+    if (gameState.phase === 'racing') {
         update();
     }
     render();
     requestAnimationFrame(gameLoop);
 }
 
-// Handle restart
+// Handle keyboard input for game control and name entry
 document.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'r' && gameState.gameOver) {
+    const key = e.key;
+
+    // Menu: SPACE to start
+    if (gameState.phase === 'menu' && key === ' ') {
+        e.preventDefault();
+        startRace();
+        return;
+    }
+
+    // Crashed: R to restart
+    if (gameState.phase === 'crashed' && key.toLowerCase() === 'r') {
         resetGame();
+        return;
+    }
+
+    // Finished: name input handling
+    if (gameState.phase === 'finished' && !gameState.nameSubmitted) {
+        if (key === 'Enter' && gameState.playerName.length >= 3) {
+            // Submit score
+            submitScore(gameState.playerName, gameState.raceTime);
+            gameState.nameSubmitted = true;
+        } else if (key === 'Backspace') {
+            gameState.playerName = gameState.playerName.slice(0, -1);
+        } else if (key.length === 1 && /[a-zA-Z0-9]/.test(key) && gameState.playerName.length < 10) {
+            gameState.playerName += key.toUpperCase();
+        }
+        return;
+    }
+
+    // Finished after submission: R to restart
+    if (gameState.phase === 'finished' && gameState.nameSubmitted && key.toLowerCase() === 'r') {
+        resetGame();
+        return;
     }
 });
 

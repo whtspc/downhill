@@ -2,6 +2,25 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Load character sprites
+const sprites = {
+    vooruit: new Image(),
+    flauweLinks: new Image(),
+    flauweRechts: new Image(),
+    scherpeLinks: new Image(),
+    scherpeRechts: new Image(),
+    sprongie: new Image(),
+    vallen: new Image()
+};
+
+sprites.vooruit.src = 'Character/Vooruit.png';
+sprites.flauweLinks.src = 'Character/Flauwe bocht naar links.png';
+sprites.flauweRechts.src = 'Character/Flauwe bocht naar rechts.png';
+sprites.scherpeLinks.src = 'Character/Scherpe bocht naar links.png';
+sprites.scherpeRechts.src = 'Character/Scherpe bocht naar rechts.png';
+sprites.sprongie.src = 'Character/Sprongie.png';
+sprites.vallen.src = 'Character/Vallen.png';
+
 // Constants - Portrait orientation
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 800;
@@ -298,35 +317,37 @@ function drawTrails() {
 function drawSkier() {
     const x = gameState.skierX;
     const y = gameState.skierY;
+    const angle = gameState.skiAngle;
+    const angleAbs = Math.abs(angle);
 
-    // Draw skis FIRST (so they appear behind/under the body)
-    const skiY = y + BODY_HEIGHT / 2; // Skis positioned below body
-    const skiRotation = -gameState.skiAngle; // Negate angle so skis point in movement direction
+    // Angle thresholds for sprite selection
+    const gentleTurnThreshold = MAX_SKI_ANGLE * 0.25; // ~15 degrees
+    const sharpTurnThreshold = MAX_SKI_ANGLE * 0.6;   // ~36 degrees
 
-    // Left ski
-    ctx.save();
-    ctx.translate(x - SKI_SPACING / 2, skiY);
-    ctx.rotate(skiRotation);
-    ctx.fillStyle = '#2c3e50'; // Dark blue skis
-    ctx.fillRect(-SKI_WIDTH / 2, -SKI_HEIGHT / 2, SKI_WIDTH, SKI_HEIGHT);
-    ctx.restore();
+    // Select sprite based on angle and game state
+    let sprite;
 
-    // Right ski
-    ctx.save();
-    ctx.translate(x + SKI_SPACING / 2, skiY);
-    ctx.rotate(skiRotation);
-    ctx.fillStyle = '#2c3e50';
-    ctx.fillRect(-SKI_WIDTH / 2, -SKI_HEIGHT / 2, SKI_WIDTH, SKI_HEIGHT);
-    ctx.restore();
+    if (gameState.phase === 'crashed') {
+        sprite = sprites.vallen;
+    } else if (angleAbs < gentleTurnThreshold) {
+        sprite = sprites.vooruit;
+    } else if (angleAbs < sharpTurnThreshold) {
+        sprite = angle < 0 ? sprites.flauweLinks : sprites.flauweRechts;
+    } else {
+        sprite = angle < 0 ? sprites.scherpeLinks : sprites.scherpeRechts;
+    }
 
-    // Draw body AFTER skis (so it appears on top)
-    const bodyTilt = -gameState.skiAngle * 0.1; // Very slight body tilt (also negated)
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(bodyTilt);
-    ctx.fillStyle = '#e74c3c'; // Red jacket
-    ctx.fillRect(-BODY_WIDTH / 2, -BODY_HEIGHT / 2, BODY_WIDTH, BODY_HEIGHT);
-    ctx.restore();
+    // Draw the character sprite
+    const spriteWidth = 80;
+    const spriteHeight = 80;
+
+    ctx.drawImage(
+        sprite,
+        x - spriteWidth / 2,
+        y - spriteHeight / 2,
+        spriteWidth,
+        spriteHeight
+    );
 }
 
 // Format time as MM:SS.ms

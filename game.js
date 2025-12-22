@@ -10,7 +10,8 @@ const sprites = {
     scherpeLinks: new Image(),
     scherpeRechts: new Image(),
     sprongie: new Image(),
-    vallen: new Image()
+    vallen: new Image(),
+    tree: new Image()
 };
 
 sprites.vooruit.src = 'Character/Vooruit.png';
@@ -20,6 +21,7 @@ sprites.scherpeLinks.src = 'Character/Scherpe bocht naar links.png';
 sprites.scherpeRechts.src = 'Character/Scherpe bocht naar rechts.png';
 sprites.sprongie.src = 'Character/Sprongie.png';
 sprites.vallen.src = 'Character/Vallen.png';
+sprites.tree.src = 'Piste/Boom sneeuw.png';
 
 // Constants - Portrait orientation
 const CANVAS_WIDTH = 600;
@@ -275,15 +277,14 @@ function drawBackground() {
 
 // Draw trees - green triangles
 function drawTrees() {
-    ctx.fillStyle = '#228B22'; // Forest green
-
     for (let tree of trees) {
-        ctx.beginPath();
-        ctx.moveTo(tree.x, tree.y - TREE_HEIGHT / 2); // Top point
-        ctx.lineTo(tree.x - TREE_WIDTH / 2, tree.y + TREE_HEIGHT / 2); // Bottom left
-        ctx.lineTo(tree.x + TREE_WIDTH / 2, tree.y + TREE_HEIGHT / 2); // Bottom right
-        ctx.closePath();
-        ctx.fill();
+        ctx.drawImage(
+            sprites.tree,
+            tree.x - TREE_WIDTH / 2,
+            tree.y - TREE_HEIGHT / 2,
+            TREE_WIDTH,
+            TREE_HEIGHT
+        );
     }
 }
 

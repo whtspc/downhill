@@ -1,3 +1,8 @@
+@font-face {
+    font-family: 'Fibberish';
+    src: url('fibberish.ttf') format('truetype');
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -10,7 +15,7 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    font-family: Arial, sans-serif;
+    font-family: 'Fibberish', Arial, sans-serif;
 }
 
 #gameCanvas {

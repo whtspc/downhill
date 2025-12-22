@@ -41,8 +41,8 @@ const SKI_HEIGHT = 30;
 const SKI_SPACING = 20;
 
 // Tree dimensions
-const TREE_WIDTH = 64;
-const TREE_HEIGHT = 96;
+const TREE_WIDTH = 90;
+const TREE_HEIGHT = 110;
 
 // Game state
 const gameState = {
@@ -226,21 +226,23 @@ function update() {
         trees.push({ x: treeX, y: CANVAS_HEIGHT + TREE_HEIGHT });
     }
 
-    // Collision detection with trees - circle at bottom half (trunk area)
-    const treeTrunkRadius = 16; // Scaled up for larger trees
+    // Collision detection with trees - circular hitboxes on bottom half of sprites
+    const treeRadius = TREE_WIDTH / 3; // ~30px - covers bottom half of tree
+    const skierRadius = 25; // Covers bottom half of 80px sprite
     for (let tree of trees) {
-        // Tree trunk center is at bottom half of tree
-        const trunkX = tree.x;
-        const trunkY = tree.y + TREE_HEIGHT / 4;
+        // Tree hitbox center is in the bottom half of the tree sprite
+        const treeHitX = tree.x;
+        const treeHitY = tree.y + TREE_HEIGHT / 4;
 
-        // Check distance from skier center to trunk center
-        const dx = gameState.skierX - trunkX;
-        const dy = gameState.skierY - trunkY;
+        // Skier hitbox center is in the bottom half of the skier sprite
+        const skierHitX = gameState.skierX;
+        const skierHitY = gameState.skierY + 15; // Offset down into bottom half
+
+        // Check distance between hitbox centers
+        const dx = skierHitX - treeHitX;
+        const dy = skierHitY - treeHitY;
         const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Collision if distance is less than trunk radius + skier radius
-        const skierRadius = BODY_WIDTH / 3; // Slightly smaller than body for forgiving collisions
-        if (distance < treeTrunkRadius + skierRadius) {
+        if (distance < treeRadius + skierRadius) {
             gameState.gameOver = true;
             gameState.phase = 'crashed';
         }
@@ -363,22 +365,22 @@ function formatTime(ms) {
 // Draw HUD
 function drawHUD() {
     ctx.fillStyle = '#333';
-    ctx.font = '16px Arial';
+    ctx.font = '22px Fibberish';
 
     // Speed display (left side)
     const speedText = `Speed: ${gameState.speed.toFixed(1)}`;
-    ctx.fillText(speedText, 20, 30);
+    ctx.fillText(speedText, 20, 35);
 
     // Timer display (right side, large)
-    ctx.font = 'bold 24px Arial';
+    ctx.font = 'bold 32px Fibberish';
     ctx.textAlign = 'right';
     const timeText = formatTime(gameState.raceTime);
-    ctx.fillText(timeText, CANVAS_WIDTH - 20, 35);
+    ctx.fillText(timeText, CANVAS_WIDTH - 20, 40);
 
     // Distance display (below timer)
-    ctx.font = '16px Arial';
+    ctx.font = '22px Fibberish';
     const distanceText = `${Math.floor(gameState.distance)} / ${RACE_DISTANCE}m`;
-    ctx.fillText(distanceText, CANVAS_WIDTH - 20, 60);
+    ctx.fillText(distanceText, CANVAS_WIDTH - 20, 70);
 
     // Progress bar
     const barWidth = 150;
@@ -405,28 +407,30 @@ function drawMenuScreen() {
 
     // Title
     ctx.fillStyle = '#2c3e50';
-    ctx.font = 'bold 64px Arial';
-    ctx.fillText('DOWNHILL', CANVAS_WIDTH / 2, 150);
+    ctx.font = 'bold 52px Fibberish';
+    ctx.fillText('BRIGHTFOX', CANVAS_WIDTH / 2, 120);
+    ctx.font = 'bold 36px Fibberish';
+    ctx.fillText('Ski Adventure', CANVAS_WIDTH / 2, 165);
 
     // Subtitle
-    ctx.font = '20px Arial';
+    ctx.font = '24px Fibberish';
     ctx.fillStyle = '#666';
-    ctx.fillText(`Race to ${RACE_DISTANCE}m as fast as you can!`, CANVAS_WIDTH / 2, 200);
+    ctx.fillText(`Race to ${RACE_DISTANCE}m as fast as you can!`, CANVAS_WIDTH / 2, 210);
 
     // Start prompt
-    ctx.font = 'bold 28px Arial';
+    ctx.font = 'bold 34px Fibberish';
     ctx.fillStyle = '#e74c3c';
     ctx.fillText('Press SPACE to start', CANVAS_WIDTH / 2, 300);
 
     // Controls
-    ctx.font = '16px Arial';
+    ctx.font = '20px Fibberish';
     ctx.fillStyle = '#888';
-    ctx.fillText('Controls:', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 120);
-    ctx.fillText('A/D or ←/→ = Turn', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 95);
+    ctx.fillText('Controls:', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 130);
+    ctx.fillText('A/D or ←/→ = Turn', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 100);
     ctx.fillText('W/S or ↑/↓ = Brake/Accelerate', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 70);
 
     // Leaderboard placeholder
-    ctx.font = 'bold 20px Arial';
+    ctx.font = 'bold 26px Fibberish';
     ctx.fillStyle = '#333';
     ctx.fillText('TOP 10', CANVAS_WIDTH / 2, 380);
 
@@ -437,7 +441,7 @@ function drawMenuScreen() {
 
 // Draw leaderboard table
 function drawLeaderboardTable(x, y) {
-    ctx.font = '14px Arial';
+    ctx.font = '18px Fibberish';
     ctx.textAlign = 'left';
 
     if (leaderboardData.length === 0) {
@@ -448,11 +452,11 @@ function drawLeaderboardTable(x, y) {
 
     for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
         const entry = leaderboardData[i];
-        const rowY = y + i * 22;
+        const rowY = y + i * 28;
         ctx.fillStyle = '#666';
         ctx.fillText(`${i + 1}.`, x, rowY);
         ctx.fillStyle = '#333';
-        ctx.fillText(entry.name, x + 30, rowY);
+        ctx.fillText(entry.name, x + 35, rowY);
         ctx.fillStyle = '#e74c3c';
         ctx.textAlign = 'right';
         ctx.fillText(formatTime(entry.time), x + 240, rowY);
@@ -467,46 +471,46 @@ function drawFinishScreen() {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#4CAF50';
-    ctx.font = 'bold 48px Arial';
+    ctx.font = 'bold 56px Fibberish';
     ctx.fillText('RACE COMPLETE!', CANVAS_WIDTH / 2, 150);
 
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 36px Arial';
+    ctx.font = 'bold 44px Fibberish';
     ctx.fillText(formatTime(gameState.raceTime), CANVAS_WIDTH / 2, 220);
 
     if (!gameState.nameSubmitted) {
         // Name input prompt
-        ctx.font = '20px Arial';
+        ctx.font = '26px Fibberish';
         ctx.fillStyle = '#ccc';
         ctx.fillText('Enter your name:', CANVAS_WIDTH / 2, 290);
 
         // Name input box
         ctx.fillStyle = '#fff';
-        ctx.fillRect(CANVAS_WIDTH / 2 - 100, 305, 200, 40);
+        ctx.fillRect(CANVAS_WIDTH / 2 - 120, 305, 240, 50);
         ctx.strokeStyle = '#4CAF50';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(CANVAS_WIDTH / 2 - 100, 305, 200, 40);
+        ctx.lineWidth = 3;
+        ctx.strokeRect(CANVAS_WIDTH / 2 - 120, 305, 240, 50);
 
         ctx.fillStyle = '#333';
-        ctx.font = '24px Arial';
-        ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 332);
+        ctx.font = '30px Fibberish';
+        ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 340);
 
-        ctx.font = '14px Arial';
+        ctx.font = '18px Fibberish';
         ctx.fillStyle = '#999';
-        ctx.fillText('Press ENTER to submit (3-10 characters)', CANVAS_WIDTH / 2, 370);
+        ctx.fillText('Press ENTER to submit (3-10 characters)', CANVAS_WIDTH / 2, 380);
     } else {
-        ctx.font = '20px Arial';
+        ctx.font = '26px Fibberish';
         ctx.fillStyle = '#4CAF50';
         ctx.fillText('Score submitted!', CANVAS_WIDTH / 2, 300);
     }
 
     // Leaderboard
-    ctx.font = 'bold 20px Arial';
+    ctx.font = 'bold 26px Fibberish';
     ctx.fillStyle = '#fff';
     ctx.fillText('TOP 10', CANVAS_WIDTH / 2, 420);
     drawLeaderboardTable(CANVAS_WIDTH / 2 - 120, 450);
 
-    ctx.font = '16px Arial';
+    ctx.font = '22px Fibberish';
     ctx.fillStyle = '#888';
     ctx.fillText('Press R to race again', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 40);
 
@@ -520,16 +524,16 @@ function drawCrashScreen() {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#e74c3c';
-    ctx.font = 'bold 48px Arial';
+    ctx.font = 'bold 64px Fibberish';
     ctx.fillText('CRASHED!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
 
     ctx.fillStyle = '#fff';
-    ctx.font = '24px Arial';
+    ctx.font = '32px Fibberish';
     ctx.fillText(`Distance: ${Math.floor(gameState.distance)}m`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
 
-    ctx.font = '20px Arial';
+    ctx.font = '26px Fibberish';
     ctx.fillStyle = '#ccc';
-    ctx.fillText('Press R to try again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 50);
+    ctx.fillText('Press R to try again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
 
     ctx.textAlign = 'left';
 }

@@ -6,7 +6,8 @@ const ctx = canvas.getContext('2d');
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 800;
 const MIN_SPEED = 1;
-const MAX_SPEED = 20;
+const MAX_SPEED_STRAIGHT = 20; // Max speed when going straight
+const MAX_SPEED_TURNING = 16; // Max speed at full turn angle
 const MAX_SKI_ANGLE = Math.PI / 3; // 60 degrees
 const TURN_SPEED_PENALTY = 0.3; // How much turning reduces downhill speed (0 = none, 1 = full stop at max angle)
 
@@ -68,17 +69,22 @@ document.addEventListener('keyup', (e) => {
 
 // Update game physics
 function update() {
+    // Calculate dynamic max speed based on ski angle (interpolate between straight and turning max)
+    const angleRatio = Math.abs(gameState.skiAngle) / MAX_SKI_ANGLE;
+    const currentMaxSpeed = MAX_SPEED_STRAIGHT - (MAX_SPEED_STRAIGHT - MAX_SPEED_TURNING) * angleRatio;
+
     // Speed control (S/W or Arrow Down/Up)
     if (gameState.keys['s'] || gameState.keys['arrowdown']) {
         gameState.speed += 0.15;
-        if (gameState.speed > MAX_SPEED) gameState.speed = MAX_SPEED;
     } else if (gameState.keys['w'] || gameState.keys['arrowup']) {
         gameState.speed -= 0.25;
-        if (gameState.speed < MIN_SPEED) gameState.speed = MIN_SPEED;
     } else {
         gameState.speed -= 0.05;
-        if (gameState.speed < MIN_SPEED) gameState.speed = MIN_SPEED;
     }
+
+    // Clamp speed to current max (which depends on angle)
+    if (gameState.speed > currentMaxSpeed) gameState.speed = currentMaxSpeed;
+    if (gameState.speed < MIN_SPEED) gameState.speed = MIN_SPEED;
 
     // Ski angle control (A/D or Arrow Left/Right)
     if (gameState.keys['a'] || gameState.keys['arrowleft']) {
@@ -92,7 +98,7 @@ function update() {
 
     // X-axis drift based on ski angle and speed
     // Wider turn radius at higher speeds
-    const turnFactor = 1 - (gameState.speed / MAX_SPEED) * 0.6;
+    const turnFactor = 1 - (gameState.speed / MAX_SPEED_STRAIGHT) * 0.6;
     const effectiveAngle = gameState.skiAngle * turnFactor;
     const drift = Math.sin(effectiveAngle) * gameState.speed * 0.8;
 

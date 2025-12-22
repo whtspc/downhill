@@ -28,7 +28,7 @@ sprites.vallen.src = 'Character/Vallen.png';
 sprites.tree.src = 'Piste/Boom sneeuw.png';
 sprites.pisteBorder.src = 'Piste/Zijkant piste.png';
 sprites.finish.src = 'Piste/Einde.png';
-sprites.titleBackground.src = 'screens/title.png';
+sprites.titleBackground.src = 'screens/titlescreenwithcontrols.png';
 sprites.logo.src = 'screens/Logo voorkant.png';
 
 // Constants - Portrait orientation
@@ -104,6 +104,11 @@ let finishLineY = null;
 
 // Leaderboard data (fetched from API)
 let leaderboardData = [];
+
+// Logo glimmer animation
+let glimmerOffset = -100; // Start position off-screen left
+const GLIMMER_SPEED = 3;
+const GLIMMER_WIDTH = 80;
 
 // Input handling
 document.addEventListener('keydown', (e) => {
@@ -475,16 +480,53 @@ function drawMenuScreen() {
     // Draw title background image (scaled to fit canvas)
     ctx.drawImage(sprites.titleBackground, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Draw logo at top center
+    // Draw logo at top center with glimmer effect on non-transparent pixels
     const logoWidth = 400;
     const logoHeight = logoWidth * (sprites.logo.height / sprites.logo.width) || 150;
-    ctx.drawImage(
-        sprites.logo,
-        CANVAS_WIDTH / 2 - logoWidth / 2,
-        30,
-        logoWidth,
-        logoHeight
+    const logoX = CANVAS_WIDTH / 2 - logoWidth / 2;
+    const logoY = 30;
+
+    // Create off-screen canvas for compositing
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = logoWidth;
+    offCanvas.height = logoHeight;
+    const offCtx = offCanvas.getContext('2d');
+
+    // Draw logo to off-screen canvas
+    offCtx.drawImage(sprites.logo, 0, 0, logoWidth, logoHeight);
+
+    // Apply glimmer only on non-transparent pixels using source-atop
+    offCtx.globalCompositeOperation = 'source-atop';
+
+    // Create diagonal glimmer gradient
+    const gradient = offCtx.createLinearGradient(
+        glimmerOffset, 0,
+        glimmerOffset + GLIMMER_WIDTH, logoHeight
     );
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.4)');
+    gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)');
+    gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.4)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+    // Draw slanted glimmer bar
+    offCtx.fillStyle = gradient;
+    offCtx.beginPath();
+    offCtx.moveTo(glimmerOffset, 0);
+    offCtx.lineTo(glimmerOffset + GLIMMER_WIDTH, 0);
+    offCtx.lineTo(glimmerOffset + GLIMMER_WIDTH + 50, logoHeight);
+    offCtx.lineTo(glimmerOffset + 50, logoHeight);
+    offCtx.closePath();
+    offCtx.fill();
+
+    // Draw the composited logo to main canvas
+    ctx.drawImage(offCanvas, logoX, logoY);
+
+    // Update glimmer position
+    glimmerOffset += GLIMMER_SPEED;
+    if (glimmerOffset > logoWidth + 100) {
+        glimmerOffset = -GLIMMER_WIDTH - 100;
+    }
 
     ctx.textAlign = 'center';
 
@@ -501,17 +543,6 @@ function drawMenuScreen() {
     ctx.fillStyle = '#e74c3c';
     ctx.strokeText('Press SPACE to start', CANVAS_WIDTH / 2, 300);
     ctx.fillText('Press SPACE to start', CANVAS_WIDTH / 2, 300);
-
-    // Controls
-    ctx.font = '20px Fibberish';
-    ctx.fillStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.strokeText('Controls:', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 130);
-    ctx.fillText('Controls:', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 130);
-    ctx.strokeText('A/D or Arrow Keys = Turn', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 100);
-    ctx.fillText('A/D or Arrow Keys = Turn', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 100);
-    ctx.strokeText('W/S or Arrow Keys = Brake/Accelerate', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 70);
-    ctx.fillText('W/S or Arrow Keys = Brake/Accelerate', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 70);
 
     // Leaderboard placeholder
     ctx.font = 'bold 26px Fibberish';

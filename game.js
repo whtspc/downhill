@@ -162,11 +162,11 @@ function update() {
 
     // Ski angle control (A/D or Arrow Left/Right)
     if (gameState.keys['a'] || gameState.keys['arrowleft']) {
-        gameState.skiAngle -= 0.04;
+        gameState.skiAngle -= 0.08;
         if (gameState.skiAngle < -MAX_SKI_ANGLE) gameState.skiAngle = -MAX_SKI_ANGLE;
     }
     if (gameState.keys['d'] || gameState.keys['arrowright']) {
-        gameState.skiAngle += 0.04;
+        gameState.skiAngle += 0.08;
         if (gameState.skiAngle > MAX_SKI_ANGLE) gameState.skiAngle = MAX_SKI_ANGLE;
     }
 
@@ -294,7 +294,7 @@ function update() {
     // Collision detection with trees - circular hitboxes on bottom half of sprites
     if (collisionEnabled) {
         const treeRadius = TREE_WIDTH / 3; // ~30px - covers bottom half of tree
-        const skierRadius = 25; // Covers bottom half of 80px sprite
+        const skierRadius = 12; // Small hitbox for more forgiving collision
         for (let tree of trees) {
             // Tree hitbox center is in the bottom half of the tree sprite
             const treeHitX = tree.x;
@@ -479,7 +479,7 @@ function drawDebug() {
     if (!DEBUG_MODE) return;
 
     const treeRadius = TREE_WIDTH / 3;
-    const skierRadius = 25;
+    const skierRadius = 12;
 
     // Draw tree collision circles
     ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';

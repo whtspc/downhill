@@ -31,7 +31,8 @@ const sprites = {
     pisteBorder: new Image(),
     finish: new Image(),
     titleBackground: new Image(),
-    logo: new Image()
+    logo: new Image(),
+    scoreboard: new Image()
 };
 
 sprites.vooruit.src = 'Character/Vooruit.png';
@@ -46,6 +47,7 @@ sprites.pisteBorder.src = 'Piste/Zijkant piste.png';
 sprites.finish.src = 'Piste/Einde.png';
 sprites.titleBackground.src = 'screens/titlescreenwithcontrols.png';
 sprites.logo.src = 'screens/Logo voorkant.png';
+sprites.scoreboard.src = 'scoreboard.png';
 
 // Constants - Portrait orientation
 const CANVAS_WIDTH = 600;
@@ -88,12 +90,27 @@ const gameState = {
     keys: {},
     gameOver: false,
     // Race mode
-    phase: 'loading', // 'loading', 'menu', 'startanim', 'racing', 'finished', 'crashed'
+    phase: 'loading', // 'loading', 'menu', 'startanim', 'racing', 'finished', 'crashed', 'scoreboard'
+    phaseStartTime: 0, // When current phase started
     distance: 0,
     raceStartTime: 0,
     raceTime: 0,
     playerName: '',
-    nameSubmitted: false
+    nameSubmitted: false,
+    // Score info for scoreboard
+    scoreType: null, // 'time' or 'distance'
+    scoreValue: 0,
+    isTopTen: false
+};
+
+// Transition state for fade effects
+const transitionState = {
+    active: false,
+    phase: 'none', // 'none', 'fadeOut', 'fadeIn'
+    alpha: 0,
+    startTime: 0,
+    delayMs: 2000,  // 2 second delay before fade starts
+    fadeMs: 500     // 500ms fade duration
 };
 
 // When video ends, start the actual race
@@ -228,6 +245,7 @@ function update() {
     // Check for race completion (when skier is well past finish line)
     if (finishLineY !== null && finishLineY < gameState.skierY - 150) {
         gameState.phase = 'finished';
+        gameState.phaseStartTime = performance.now();
         return; // Stop updating
     }
 
@@ -322,6 +340,7 @@ function update() {
             if (distance < treeRadius + skierRadius) {
                 gameState.gameOver = true;
                 gameState.phase = 'crashed';
+                gameState.phaseStartTime = performance.now();
                 // Stop music and play fall sound
                 bgMusic.pause();
                 bgMusic.currentTime = 0;
@@ -632,15 +651,6 @@ function drawMenuScreen() {
     ctx.strokeText('Press SPACE to start', CANVAS_WIDTH / 2, 250);
     ctx.fillText('Press SPACE to start', CANVAS_WIDTH / 2, 250);
 
-    // Leaderboard placeholder
-    ctx.font = 'bold 26px Fibberish';
-    ctx.fillStyle = '#fff';
-    ctx.lineWidth = 3;
-    ctx.strokeText('TOP 10', CANVAS_WIDTH / 2, 380);
-    ctx.fillText('TOP 10', CANVAS_WIDTH / 2, 380);
-
-    drawLeaderboardTable(CANVAS_WIDTH / 2 - 120, 400);
-
     ctx.textAlign = 'left';
 }
 
@@ -679,47 +689,16 @@ function drawFinishScreen() {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#4CAF50';
     ctx.font = 'bold 56px Fibberish';
-    ctx.fillText('RACE COMPLETE!', CANVAS_WIDTH / 2, 150);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.strokeText('RACE COMPLETE!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+    ctx.fillText('RACE COMPLETE!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
 
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 44px Fibberish';
-    ctx.fillText(formatTime(gameState.raceTime), CANVAS_WIDTH / 2, 220);
-
-    if (!gameState.nameSubmitted) {
-        // Name input prompt
-        ctx.font = '26px Fibberish';
-        ctx.fillStyle = '#ccc';
-        ctx.fillText('Enter your name:', CANVAS_WIDTH / 2, 290);
-
-        // Name input box
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(CANVAS_WIDTH / 2 - 120, 305, 240, 50);
-        ctx.strokeStyle = '#4CAF50';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(CANVAS_WIDTH / 2 - 120, 305, 240, 50);
-
-        ctx.fillStyle = '#333';
-        ctx.font = '30px Fibberish';
-        ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 340);
-
-        ctx.font = '18px Fibberish';
-        ctx.fillStyle = '#999';
-        ctx.fillText('Press ENTER to submit (3-10 characters)', CANVAS_WIDTH / 2, 380);
-    } else {
-        ctx.font = '26px Fibberish';
-        ctx.fillStyle = '#4CAF50';
-        ctx.fillText('Score submitted!', CANVAS_WIDTH / 2, 300);
-    }
-
-    // Leaderboard
-    ctx.font = 'bold 26px Fibberish';
-    ctx.fillStyle = '#fff';
-    ctx.fillText('TOP 10', CANVAS_WIDTH / 2, 420);
-    drawLeaderboardTable(CANVAS_WIDTH / 2 - 120, 450);
-
-    ctx.font = '22px Fibberish';
-    ctx.fillStyle = '#888';
-    ctx.fillText('Press R to race again', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 40);
+    ctx.lineWidth = 3;
+    ctx.strokeText(formatTime(gameState.raceTime), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
+    ctx.fillText(formatTime(gameState.raceTime), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
 
     ctx.textAlign = 'left';
 }
@@ -742,11 +721,6 @@ function drawCrashScreen() {
     ctx.strokeText(`Distance: ${Math.floor(gameState.distance)}m`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
     ctx.fillText(`Distance: ${Math.floor(gameState.distance)}m`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
 
-    ctx.font = '26px Fibberish';
-    ctx.fillStyle = '#fff';
-    ctx.strokeText('Press SPACE to try again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
-    ctx.fillText('Press SPACE to try again', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
-
     ctx.textAlign = 'left';
 }
 
@@ -754,6 +728,169 @@ function drawCrashScreen() {
 function drawStartAnim() {
     // Draw video frame to canvas, scaled to fit
     ctx.drawImage(startVideo, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+}
+
+// Compare scores for sorting (time > distance, lower time better, higher distance better)
+function compareScores(a, b) {
+    // Time scores always rank above distance scores
+    if (a.type === 'time' && b.type === 'distance') return -1;
+    if (a.type === 'distance' && b.type === 'time') return 1;
+
+    // Same type: lower time is better, higher distance is better
+    if (a.type === 'time') return a.value - b.value;
+    return b.value - a.value;
+}
+
+// Check if a score would make top 10
+function isTopTenScore(type, value) {
+    if (leaderboardData.length < 10) return true;
+    const tempEntry = { type, value, name: '' };
+    const sorted = [...leaderboardData, tempEntry].sort(compareScores);
+    const rank = sorted.findIndex(e => e === tempEntry) + 1;
+    return rank <= 10;
+}
+
+// Format score for display
+function formatScore(entry) {
+    if (entry.type === 'time') {
+        return formatTime(entry.value);
+    } else {
+        return `${Math.floor(entry.value)}m`;
+    }
+}
+
+// Draw scoreboard screen
+function drawScoreboardScreen() {
+    // Draw scoreboard background
+    ctx.drawImage(sprites.scoreboard, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Draw leaderboard entries on the wooden board
+    ctx.textAlign = 'left';
+    ctx.font = '20px Fibberish';
+
+    const startY = 195;
+    const rowHeight = 28;
+    const nameX = 140;
+    const scoreX = 460;
+
+    for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
+        const entry = leaderboardData[i];
+        const rowY = startY + i * rowHeight;
+
+        // Rank
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeText(`${i + 1}.`, nameX - 40, rowY);
+        ctx.fillText(`${i + 1}.`, nameX - 40, rowY);
+
+        // Name
+        ctx.strokeText(entry.name || '???', nameX, rowY);
+        ctx.fillText(entry.name || '???', nameX, rowY);
+
+        // Score
+        ctx.textAlign = 'right';
+        const scoreText = formatScore(entry);
+        ctx.strokeText(scoreText, scoreX, rowY);
+        ctx.fillText(scoreText, scoreX, rowY);
+        ctx.textAlign = 'left';
+    }
+
+    // Show player's result at bottom of the board
+    ctx.textAlign = 'center';
+    ctx.font = '22px Fibberish';
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+
+    const resultText = gameState.scoreType === 'time'
+        ? `Your time: ${formatTime(gameState.scoreValue)}`
+        : `Your distance: ${Math.floor(gameState.scoreValue)}m`;
+    ctx.strokeText(resultText, CANVAS_WIDTH / 2, 490);
+    ctx.fillText(resultText, CANVAS_WIDTH / 2, 490);
+
+    // Name input if top 10 and not submitted
+    if (gameState.isTopTen && !gameState.nameSubmitted) {
+        ctx.font = '20px Fibberish';
+        ctx.fillStyle = '#4CAF50';
+        ctx.strokeText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, 530);
+        ctx.fillText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, 530);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '18px Fibberish';
+        ctx.strokeText('Enter your name:', CANVAS_WIDTH / 2, 560);
+        ctx.fillText('Enter your name:', CANVAS_WIDTH / 2, 560);
+
+        // Name input box
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(CANVAS_WIDTH / 2 - 80, 575, 160, 35);
+        ctx.strokeStyle = '#4CAF50';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(CANVAS_WIDTH / 2 - 80, 575, 160, 35);
+
+        ctx.fillStyle = '#333';
+        ctx.font = '22px Fibberish';
+        ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 600);
+    } else {
+        ctx.font = '20px Fibberish';
+        ctx.fillStyle = '#fff';
+        ctx.strokeText('Press SPACE to continue', CANVAS_WIDTH / 2, 550);
+        ctx.fillText('Press SPACE to continue', CANVAS_WIDTH / 2, 550);
+    }
+
+    ctx.textAlign = 'left';
+}
+
+// Start fade transition to scoreboard
+function startFadeTransition() {
+    transitionState.active = true;
+    transitionState.phase = 'fadeOut';
+    transitionState.startTime = performance.now();
+    transitionState.alpha = 0;
+
+    // Store score info
+    if (gameState.phase === 'finished') {
+        gameState.scoreType = 'time';
+        gameState.scoreValue = gameState.raceTime;
+    } else {
+        gameState.scoreType = 'distance';
+        gameState.scoreValue = gameState.distance;
+    }
+    gameState.isTopTen = isTopTenScore(gameState.scoreType, gameState.scoreValue);
+    gameState.playerName = '';
+    gameState.nameSubmitted = false;
+}
+
+// Update transition state
+function updateTransition() {
+    if (!transitionState.active) return;
+
+    const elapsed = performance.now() - transitionState.startTime;
+
+    if (transitionState.phase === 'fadeOut') {
+        transitionState.alpha = Math.min(1, elapsed / transitionState.fadeMs);
+        if (elapsed >= transitionState.fadeMs) {
+            // Fade out complete, switch to scoreboard phase and start fade in
+            gameState.phase = 'scoreboard';
+            transitionState.phase = 'fadeIn';
+            transitionState.startTime = performance.now();
+        }
+    } else if (transitionState.phase === 'fadeIn') {
+        transitionState.alpha = Math.max(0, 1 - elapsed / transitionState.fadeMs);
+        if (elapsed >= transitionState.fadeMs) {
+            // Fade in complete
+            transitionState.active = false;
+            transitionState.phase = 'none';
+            transitionState.alpha = 0;
+        }
+    }
+}
+
+// Draw fade overlay
+function drawTransition() {
+    if (!transitionState.active || transitionState.alpha <= 0) return;
+    ctx.fillStyle = `rgba(0, 0, 0, ${transitionState.alpha})`;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 }
 
 // Main render function
@@ -768,6 +905,8 @@ function render() {
         drawMenuScreen();
     } else if (gameState.phase === 'startanim') {
         drawStartAnim();
+    } else if (gameState.phase === 'scoreboard') {
+        drawScoreboardScreen();
     } else {
         // Draw game world
         drawBackground();
@@ -786,6 +925,9 @@ function render() {
             drawCrashScreen();
         }
     }
+
+    // Draw fade transition overlay on top of everything
+    drawTransition();
 }
 
 // Preload all resources (images, fonts, video, audio)
@@ -923,6 +1065,18 @@ function gameLoop() {
     } else if (gameState.phase === 'crashed') {
         updateCrashed();
     }
+
+    // Check for transition to scoreboard after delay
+    if ((gameState.phase === 'finished' || gameState.phase === 'crashed') && !transitionState.active) {
+        const elapsed = performance.now() - gameState.phaseStartTime;
+        if (elapsed >= transitionState.delayMs) {
+            startFadeTransition();
+        }
+    }
+
+    // Update transition animation
+    updateTransition();
+
     render();
     requestAnimationFrame(gameLoop);
 }
@@ -996,21 +1150,14 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Crashed: SPACE to restart
-    if (gameState.phase === 'crashed' && key === ' ') {
-        e.preventDefault();
-        bgMusic.play().catch(() => {}); // Resume music
-        resetGame();
-        return;
-    }
-
-    // Finished: name input handling
-    if (gameState.phase === 'finished' && !gameState.nameSubmitted) {
+    // Scoreboard: name input handling (if top 10 and not submitted)
+    if (gameState.phase === 'scoreboard' && gameState.isTopTen && !gameState.nameSubmitted) {
         if (key === 'Enter' && gameState.playerName.length >= 3) {
             // Submit score
-            submitScore(gameState.playerName, gameState.raceTime);
+            submitScore(gameState.playerName, gameState.scoreType, gameState.scoreValue);
             gameState.nameSubmitted = true;
         } else if (key === 'Backspace') {
+            e.preventDefault();
             gameState.playerName = gameState.playerName.slice(0, -1);
         } else if (key.length === 1 && /[a-zA-Z0-9]/.test(key) && gameState.playerName.length < 10) {
             gameState.playerName += key.toUpperCase();
@@ -1018,10 +1165,14 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Finished after submission: R to restart
-    if (gameState.phase === 'finished' && gameState.nameSubmitted && key.toLowerCase() === 'r') {
-        resetGame();
-        return;
+    // Scoreboard: SPACE to go back to menu (if not entering name or already submitted)
+    if (gameState.phase === 'scoreboard' && (!gameState.isTopTen || gameState.nameSubmitted)) {
+        if (key === ' ') {
+            e.preventDefault();
+            bgMusic.play().catch(() => {}); // Resume music
+            resetGame();
+            return;
+        }
     }
 });
 

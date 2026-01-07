@@ -1005,8 +1005,8 @@ function drawScoreboardScreen() {
     const resultText = gameState.scoreType === 'time'
         ? `Your time: ${formatTime(gameState.scoreValue)}`
         : `Your distance: ${Math.floor(gameState.scoreValue)}m`;
-    ctx.strokeText(resultText, CANVAS_WIDTH / 2, 515);
-    ctx.fillText(resultText, CANVAS_WIDTH / 2, 515);
+    ctx.strokeText(resultText, CANVAS_WIDTH / 2, 485);
+    ctx.fillText(resultText, CANVAS_WIDTH / 2, 485);
 
     // Name input or rank display - positioned below the wooden board
     // Don't show controls while loading

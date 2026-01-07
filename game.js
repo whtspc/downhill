@@ -88,16 +88,17 @@ const SKI_HEIGHT = 30;
 const SKI_SPACING = 20;
 
 // Obstacle type definitions
+// hitboxOffsetY: vertical offset from sprite center for hitbox (positive = down)
 const OBSTACLE_TYPES = {
-    tree: { sprite: 'tree', width: 90, height: 110, hitboxRadius: 30, jumpable: false, spawnLocation: 'anywhere', weight: 85 },
-    snowman: { sprite: 'snowman', width: 75, height: 90, hitboxRadius: 25, jumpable: false, spawnLocation: 'anywhere', weight: 3 },
-    arrowLeft: { sprite: 'arrowLeft', width: 80, height: 80, hitboxRadius: 18, jumpable: false, spawnLocation: 'right', weight: 2 },
-    arrowRight: { sprite: 'arrowRight', width: 80, height: 80, hitboxRadius: 18, jumpable: false, spawnLocation: 'left', weight: 2 },
-    rock1: { sprite: 'rock1', width: 60, height: 50, hitboxRadius: 20, jumpable: true, spawnLocation: 'anywhere', weight: 2 },
-    rock2: { sprite: 'rock2', width: 80, height: 65, hitboxRadius: 28, jumpable: true, spawnLocation: 'anywhere', weight: 2 },
-    heaps: { sprite: 'heaps', width: 100, height: 55, hitboxRadius: 25, jumpable: true, spawnLocation: 'anywhere', weight: 1 },
-    voetjes: { sprite: 'voetjes', width: 70, height: 80, hitboxRadius: 20, jumpable: false, spawnLocation: 'anywhere', weight: 1 },
-    wineBarrel: { sprite: 'wineBarrel', width: 80, height: 80, hitboxRadius: 25, jumpable: false, spawnLocation: 'anywhere', weight: 2 }
+    tree: { sprite: 'tree', width: 90, height: 110, hitboxRadius: 30, hitboxOffsetY: 27, jumpable: false, spawnLocation: 'anywhere', weight: 80 },
+    snowman: { sprite: 'snowman', width: 75, height: 90, hitboxRadius: 25, hitboxOffsetY: 22, jumpable: false, spawnLocation: 'anywhere', weight: 1 },
+    arrowLeft: { sprite: 'arrowLeft', width: 80, height: 80, hitboxRadius: 18, hitboxOffsetY: 20, jumpable: false, spawnLocation: 'right', weight: 3 },
+    arrowRight: { sprite: 'arrowRight', width: 80, height: 80, hitboxRadius: 18, hitboxOffsetY: 20, jumpable: false, spawnLocation: 'left', weight: 3 },
+    rock1: { sprite: 'rock1', width: 60, height: 50, hitboxRadius: 20, hitboxOffsetY: 5, jumpable: true, spawnLocation: 'anywhere', weight: 4 },
+    rock2: { sprite: 'rock2', width: 80, height: 65, hitboxRadius: 28, hitboxOffsetY: 5, jumpable: true, spawnLocation: 'anywhere', weight: 4 },
+    heaps: { sprite: 'heaps', width: 100, height: 55, hitboxRadius: 25, hitboxOffsetY: 0, jumpable: true, spawnLocation: 'anywhere', weight: 4 },
+    voetjes: { sprite: 'voetjes', width: 70, height: 80, hitboxRadius: 20, hitboxOffsetY: 20, jumpable: false, spawnLocation: 'anywhere', weight: 1 },
+    wineBarrel: { sprite: 'wineBarrel', width: 80, height: 80, hitboxRadius: 25, hitboxOffsetY: 20, jumpable: false, spawnLocation: 'anywhere', weight: 0 }
 };
 
 // Calculate total weight for probability
@@ -440,9 +441,9 @@ function update() {
                 continue;
             }
 
-            // Obstacle hitbox center is in the bottom half of the obstacle sprite
+            // Obstacle hitbox center uses custom offset from sprite center
             const obstacleHitX = obstacle.x;
-            const obstacleHitY = obstacle.y + config.height / 4;
+            const obstacleHitY = obstacle.y + config.hitboxOffsetY;
 
             // Skier hitbox center is in the bottom half of the skier sprite
             const skierHitX = gameState.skierX;
@@ -662,7 +663,7 @@ function drawDebug() {
     for (let obstacle of obstacles) {
         const config = OBSTACLE_TYPES[obstacle.type];
         const obstacleHitX = obstacle.x;
-        const obstacleHitY = obstacle.y + config.height / 4;
+        const obstacleHitY = obstacle.y + config.hitboxOffsetY;
 
         // Red for solid obstacles, orange for jumpable
         if (config.jumpable) {

@@ -27,9 +27,20 @@ const sprites = {
     scherpeRechts: new Image(),
     sprongie: new Image(),
     vallen: new Image(),
+    // Obstacles
     tree: new Image(),
+    snowman: new Image(),
+    arrowLeft: new Image(),
+    arrowRight: new Image(),
+    rock1: new Image(),
+    rock2: new Image(),
+    heaps: new Image(),
+    voetjes: new Image(),
+    wineBarrel: new Image(),
+    // Environment
     pisteBorder: new Image(),
     finish: new Image(),
+    // Screens
     titleBackground: new Image(),
     logo: new Image(),
     scoreboard: new Image()
@@ -42,9 +53,19 @@ sprites.scherpeLinks.src = 'Character/Scherpe bocht naar links.png';
 sprites.scherpeRechts.src = 'Character/Scherpe bocht naar rechts.png';
 sprites.sprongie.src = 'Character/Sprongie.png';
 sprites.vallen.src = 'Character/Vallen.png';
+// Obstacle sprites
 sprites.tree.src = 'Piste/Boom sneeuw.png';
-sprites.pisteBorder.src = 'Piste/Zijkant piste.png';
-sprites.finish.src = 'Piste/Einde.png';
+sprites.snowman.src = 'Piste/snowman.png';
+sprites.arrowLeft.src = 'Piste/arrowleft.png';
+sprites.arrowRight.src = 'Piste/arrowright.png';
+sprites.rock1.src = 'Piste/rock1.png';
+sprites.rock2.src = 'Piste/rock2.png';
+sprites.heaps.src = 'Piste/heaps.png';
+sprites.voetjes.src = 'Piste/Voetjes.png';
+sprites.wineBarrel.src = 'Piste/Wijnding.png';
+// Environment sprites
+sprites.pisteBorder.src = 'Piste/environment/Zijkant piste.png';
+sprites.finish.src = 'Piste/environment/Einde.png';
 sprites.titleBackground.src = 'screens/titlescreenwithcontrols.png';
 sprites.logo.src = 'screens/Logo voorkant.png';
 sprites.scoreboard.src = 'scoreboard.png';
@@ -66,9 +87,53 @@ const SKI_WIDTH = 4;
 const SKI_HEIGHT = 30;
 const SKI_SPACING = 20;
 
-// Tree dimensions
-const TREE_WIDTH = 90;
-const TREE_HEIGHT = 110;
+// Obstacle type definitions
+const OBSTACLE_TYPES = {
+    tree: { sprite: 'tree', width: 90, height: 110, hitboxRadius: 30, jumpable: false, spawnLocation: 'anywhere', weight: 85 },
+    snowman: { sprite: 'snowman', width: 75, height: 90, hitboxRadius: 25, jumpable: false, spawnLocation: 'anywhere', weight: 3 },
+    arrowLeft: { sprite: 'arrowLeft', width: 80, height: 80, hitboxRadius: 18, jumpable: false, spawnLocation: 'right', weight: 2 },
+    arrowRight: { sprite: 'arrowRight', width: 80, height: 80, hitboxRadius: 18, jumpable: false, spawnLocation: 'left', weight: 2 },
+    rock1: { sprite: 'rock1', width: 60, height: 50, hitboxRadius: 20, jumpable: true, spawnLocation: 'anywhere', weight: 2 },
+    rock2: { sprite: 'rock2', width: 80, height: 65, hitboxRadius: 28, jumpable: true, spawnLocation: 'anywhere', weight: 2 },
+    heaps: { sprite: 'heaps', width: 100, height: 55, hitboxRadius: 25, jumpable: true, spawnLocation: 'anywhere', weight: 1 },
+    voetjes: { sprite: 'voetjes', width: 70, height: 80, hitboxRadius: 20, jumpable: false, spawnLocation: 'anywhere', weight: 1 },
+    wineBarrel: { sprite: 'wineBarrel', width: 80, height: 80, hitboxRadius: 25, jumpable: false, spawnLocation: 'anywhere', weight: 2 }
+};
+
+// Calculate total weight for probability
+const TOTAL_OBSTACLE_WEIGHT = Object.values(OBSTACLE_TYPES).reduce((sum, t) => sum + t.weight, 0);
+
+// Select a random obstacle type based on weights
+function selectObstacleType() {
+    let random = Math.random() * TOTAL_OBSTACLE_WEIGHT;
+    for (const [type, config] of Object.entries(OBSTACLE_TYPES)) {
+        random -= config.weight;
+        if (random <= 0) {
+            return type;
+        }
+    }
+    return 'tree'; // Fallback
+}
+
+// Calculate X position for obstacle based on spawn location rule
+function calculateObstacleX(obstacleType) {
+    const config = OBSTACLE_TYPES[obstacleType];
+    const borderMargin = 70; // Distance from edge for border obstacles
+    const minX = config.width / 2;
+    const maxX = CANVAS_WIDTH - config.width / 2;
+
+    switch (config.spawnLocation) {
+        case 'left':
+            // Spawn near left border (for arrowRight which points players right)
+            return borderMargin;
+        case 'right':
+            // Spawn near right border (for arrowLeft which points players left)
+            return CANVAS_WIDTH - borderMargin;
+        case 'anywhere':
+        default:
+            return minX + Math.random() * (maxX - minX);
+    }
+}
 
 // Finish line dimensions (full width, maintain aspect ratio)
 const FINISH_WIDTH = CANVAS_WIDTH;
@@ -150,10 +215,10 @@ for (let i = 0; i < NUM_DOTS; i++) {
 // Trail points in screen coordinates - array of {leftX, leftY, rightX, rightY}
 const trailPoints = [];
 
-// Trees - array of {x, y}
-const trees = [];
-const TREE_SPAWN_DISTANCE = 350; // base distance between tree spawns
-let distanceSinceLastTree = 0;
+// Obstacles - array of {x, y, type}
+const obstacles = [];
+const OBSTACLE_SPAWN_DISTANCE = 350; // base distance between obstacle spawns
+let distanceSinceLastObstacle = 0;
 
 // Finish line position (Y coordinate on screen, null when not visible)
 let finishLineY = null;
@@ -334,47 +399,60 @@ function update() {
         rightY: rightBackY
     });
 
-    // Update trees - scroll upward
-    for (let tree of trees) {
-        tree.y -= downhillSpeed;
+    // Update obstacles - scroll upward
+    for (let obstacle of obstacles) {
+        obstacle.y -= downhillSpeed;
     }
 
-    // Remove trees that are off screen
-    while (trees.length > 0 && trees[0].y < -TREE_HEIGHT) {
-        trees.shift();
-    }
-
-    // Spawn new trees based on distance traveled (stop after 18000m)
-    if (gameState.distance < 18000) {
-        distanceSinceLastTree += downhillSpeed;
-        // Add randomization: spawn between 0.7x and 1.3x the base distance
-        const nextTreeDistance = TREE_SPAWN_DISTANCE * (0.3 + Math.random() * 2);
-        if (distanceSinceLastTree >= nextTreeDistance) {
-            distanceSinceLastTree = 0;
-            // Random x position, spawn below screen
-            const treeX = TREE_WIDTH / 2 + Math.random() * (CANVAS_WIDTH - TREE_WIDTH);
-            trees.push({ x: treeX, y: CANVAS_HEIGHT + TREE_HEIGHT });
+    // Remove obstacles that are off screen
+    while (obstacles.length > 0) {
+        const firstConfig = OBSTACLE_TYPES[obstacles[0].type];
+        if (obstacles[0].y < -firstConfig.height) {
+            obstacles.shift();
+        } else {
+            break;
         }
     }
 
-    // Collision detection with trees - circular hitboxes on bottom half of sprites
+    // Spawn new obstacles based on distance traveled (stop after 18000m)
+    if (gameState.distance < 18000) {
+        distanceSinceLastObstacle += downhillSpeed;
+        // Add randomization: spawn between 0.3x and 2.3x the base distance
+        const nextObstacleDistance = OBSTACLE_SPAWN_DISTANCE * (0.3 + Math.random() * 2);
+        if (distanceSinceLastObstacle >= nextObstacleDistance) {
+            distanceSinceLastObstacle = 0;
+            // Select obstacle type and calculate position
+            const obstacleType = selectObstacleType();
+            const config = OBSTACLE_TYPES[obstacleType];
+            const obstacleX = calculateObstacleX(obstacleType);
+            obstacles.push({ x: obstacleX, y: CANVAS_HEIGHT + config.height, type: obstacleType });
+        }
+    }
+
+    // Collision detection with obstacles - circular hitboxes on bottom half of sprites
     if (collisionEnabled) {
-        const treeRadius = TREE_WIDTH / 3; // ~30px - covers bottom half of tree
         const skierRadius = 12; // Small hitbox for more forgiving collision
-        for (let tree of trees) {
-            // Tree hitbox center is in the bottom half of the tree sprite
-            const treeHitX = tree.x;
-            const treeHitY = tree.y + TREE_HEIGHT / 4;
+        for (let obstacle of obstacles) {
+            const config = OBSTACLE_TYPES[obstacle.type];
+
+            // Skip collision for jumpable obstacles when player is jumping
+            if (config.jumpable && gameState.isJumping) {
+                continue;
+            }
+
+            // Obstacle hitbox center is in the bottom half of the obstacle sprite
+            const obstacleHitX = obstacle.x;
+            const obstacleHitY = obstacle.y + config.height / 4;
 
             // Skier hitbox center is in the bottom half of the skier sprite
             const skierHitX = gameState.skierX;
             const skierHitY = gameState.skierY + 15; // Offset down into bottom half
 
             // Check distance between hitbox centers
-            const dx = skierHitX - treeHitX;
-            const dy = skierHitY - treeHitY;
+            const dx = skierHitX - obstacleHitX;
+            const dy = skierHitY - obstacleHitY;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < treeRadius + skierRadius) {
+            if (distance < config.hitboxRadius + skierRadius) {
                 gameState.gameOver = true;
                 gameState.phase = 'crashed';
                 gameState.phaseStartTime = performance.now();
@@ -383,6 +461,7 @@ function update() {
                 bgMusic.currentTime = 0;
                 fallSound.currentTime = 0.5; // Skip 500ms of silence at the start
                 fallSound.play().catch(() => {});
+                break; // Exit loop after collision
             }
         }
     }
@@ -416,15 +495,16 @@ function drawBackground() {
     }
 }
 
-// Draw trees
-function drawTrees() {
-    for (let tree of trees) {
+// Draw obstacles
+function drawObstacles() {
+    for (let obstacle of obstacles) {
+        const config = OBSTACLE_TYPES[obstacle.type];
         ctx.drawImage(
-            sprites.tree,
-            tree.x - TREE_WIDTH / 2,
-            tree.y - TREE_HEIGHT / 2,
-            TREE_WIDTH,
-            TREE_HEIGHT
+            sprites[config.sprite],
+            obstacle.x - config.width / 2,
+            obstacle.y - config.height / 2,
+            config.width,
+            config.height
         );
     }
 }
@@ -575,18 +655,31 @@ function formatTime(ms) {
 function drawDebug() {
     if (!DEBUG_MODE) return;
 
-    const treeRadius = TREE_WIDTH / 3;
     const skierRadius = 12;
 
-    // Draw tree collision circles
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+    // Draw obstacle collision circles with different colors
     ctx.lineWidth = 2;
-    for (let tree of trees) {
-        const treeHitX = tree.x;
-        const treeHitY = tree.y + TREE_HEIGHT / 4;
+    for (let obstacle of obstacles) {
+        const config = OBSTACLE_TYPES[obstacle.type];
+        const obstacleHitX = obstacle.x;
+        const obstacleHitY = obstacle.y + config.height / 4;
+
+        // Red for solid obstacles, orange for jumpable
+        if (config.jumpable) {
+            ctx.strokeStyle = 'rgba(255, 165, 0, 0.7)'; // Orange for jumpable
+        } else {
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)'; // Red for solid
+        }
+
         ctx.beginPath();
-        ctx.arc(treeHitX, treeHitY, treeRadius, 0, Math.PI * 2);
+        ctx.arc(obstacleHitX, obstacleHitY, config.hitboxRadius, 0, Math.PI * 2);
         ctx.stroke();
+
+        // Draw type label above hitbox
+        ctx.fillStyle = config.jumpable ? 'rgba(255, 165, 0, 0.8)' : 'rgba(255, 0, 0, 0.8)';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(obstacle.type, obstacleHitX, obstacleHitY - config.hitboxRadius - 5);
     }
 
     // Draw skier collision circle
@@ -598,15 +691,27 @@ function drawDebug() {
     ctx.arc(skierHitX, skierHitY, skierRadius, 0, Math.PI * 2);
     ctx.stroke();
 
+    // Count jumpable vs solid obstacles
+    let jumpableCount = 0;
+    let solidCount = 0;
+    for (let obstacle of obstacles) {
+        if (OBSTACLE_TYPES[obstacle.type].jumpable) {
+            jumpableCount++;
+        } else {
+            solidCount++;
+        }
+    }
+
     // Draw debug info text
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(5, CANVAS_HEIGHT - 60, 200, 55);
+    ctx.fillRect(5, CANVAS_HEIGHT - 75, 220, 70);
     ctx.fillStyle = '#fff';
-    ctx.font = '14px Arial';
+    ctx.font = '12px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText('DEBUG MODE', 10, CANVAS_HEIGHT - 45);
-    ctx.fillText(`Collision: ${collisionEnabled ? 'ON' : 'OFF'} (press C to toggle)`, 10, CANVAS_HEIGHT - 28);
-    ctx.fillText(`Trees: ${trees.length}`, 10, CANVAS_HEIGHT - 11);
+    ctx.fillText('DEBUG MODE', 10, CANVAS_HEIGHT - 60);
+    ctx.fillText(`Collision: ${collisionEnabled ? 'ON' : 'OFF'} (press C)`, 10, CANVAS_HEIGHT - 45);
+    ctx.fillText(`Obstacles: ${obstacles.length} (solid: ${solidCount}, jump: ${jumpableCount})`, 10, CANVAS_HEIGHT - 30);
+    ctx.fillText(`Jumping: ${gameState.isJumping ? 'YES' : 'NO'}`, 10, CANVAS_HEIGHT - 15);
 }
 
 // Draw HUD
@@ -991,9 +1096,9 @@ function startMenuTransition() {
         gameState.raceTime = 0;
         gameState.playerName = '';
         gameState.nameSubmitted = false;
-        trees.length = 0;
+        obstacles.length = 0;
         trailPoints.length = 0;
-        distanceSinceLastTree = 0;
+        distanceSinceLastObstacle = 0;
         finishLineY = null;
     };
 }
@@ -1059,7 +1164,7 @@ function render() {
         drawTrails();
         drawSkier(); // Draw skier before finish line so they go underneath
         drawFinishLine();
-        drawTrees();
+        drawObstacles();
         drawHUD();
         drawDebug();
 
@@ -1179,9 +1284,9 @@ function resetGame() {
     gameState.raceStartTime = 0;
     gameState.playerName = '';
     gameState.nameSubmitted = false;
-    trees.length = 0;
+    obstacles.length = 0;
     trailPoints.length = 0;
-    distanceSinceLastTree = 0;
+    distanceSinceLastObstacle = 0;
     finishLineY = null;
 }
 
@@ -1200,9 +1305,9 @@ function startRace() {
     gameState.isJumping = false;
     gameState.jumpStartTime = 0;
     gameState.jumpDrift = 0;
-    trees.length = 0;
+    obstacles.length = 0;
     trailPoints.length = 0;
-    distanceSinceLastTree = 0;
+    distanceSinceLastObstacle = 0;
     finishLineY = null;
 
     // Pre-fetch leaderboard while racing (warms up Supabase)
@@ -1270,14 +1375,19 @@ function updateCrashed() {
         point.rightY -= downhillSpeed;
     }
 
-    // Scroll trees
-    for (let tree of trees) {
-        tree.y -= downhillSpeed;
+    // Scroll obstacles
+    for (let obstacle of obstacles) {
+        obstacle.y -= downhillSpeed;
     }
 
-    // Remove off-screen trees
-    while (trees.length > 0 && trees[0].y < -TREE_HEIGHT) {
-        trees.shift();
+    // Remove off-screen obstacles
+    while (obstacles.length > 0) {
+        const firstConfig = OBSTACLE_TYPES[obstacles[0].type];
+        if (obstacles[0].y < -firstConfig.height) {
+            obstacles.shift();
+        } else {
+            break;
+        }
     }
 }
 

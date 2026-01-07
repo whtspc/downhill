@@ -2,6 +2,9 @@
 // Replace this URL with your Google Apps Script web app URL
 const LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycbwpE1AYa9Hea0qVetkFWjp8BljORPxibdqihEe6dmaPbdoxxVNWVZea-s-D4J-CnYPS/exec';
 
+// Global leaderboard data
+let leaderboardData = [];
+
 // Compare scores for sorting (time > distance, lower time better, higher distance better)
 function compareScoresLeaderboard(a, b) {
     // Time scores always rank above distance scores
@@ -21,7 +24,11 @@ async function fetchLeaderboard() {
     }
 
     try {
-        const response = await fetch(LEADERBOARD_URL);
+        // Use redirect: 'follow' for Google Apps Script
+        const response = await fetch(LEADERBOARD_URL, {
+            method: 'GET',
+            redirect: 'follow'
+        });
         if (!response.ok) {
             throw new Error('Failed to fetch leaderboard');
         }
@@ -52,10 +59,13 @@ async function submitScore(name, type, value) {
     }
 
     try {
+        // Use POST with text/plain to avoid CORS preflight
+        // Google Apps Script will parse the JSON from the text body
         const response = await fetch(LEADERBOARD_URL, {
             method: 'POST',
+            redirect: 'follow',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'text/plain',
             },
             body: JSON.stringify({ name, type, value }),
         });

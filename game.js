@@ -309,15 +309,17 @@ function update() {
         trees.shift();
     }
 
-    // Spawn new trees based on distance traveled
-    distanceSinceLastTree += downhillSpeed;
-    // Add randomization: spawn between 0.7x and 1.3x the base distance
-    const nextTreeDistance = TREE_SPAWN_DISTANCE * (0.3 + Math.random() * 2);
-    if (distanceSinceLastTree >= nextTreeDistance) {
-        distanceSinceLastTree = 0;
-        // Random x position, spawn below screen
-        const treeX = TREE_WIDTH / 2 + Math.random() * (CANVAS_WIDTH - TREE_WIDTH);
-        trees.push({ x: treeX, y: CANVAS_HEIGHT + TREE_HEIGHT });
+    // Spawn new trees based on distance traveled (stop after 18000m)
+    if (gameState.distance < 18000) {
+        distanceSinceLastTree += downhillSpeed;
+        // Add randomization: spawn between 0.7x and 1.3x the base distance
+        const nextTreeDistance = TREE_SPAWN_DISTANCE * (0.3 + Math.random() * 2);
+        if (distanceSinceLastTree >= nextTreeDistance) {
+            distanceSinceLastTree = 0;
+            // Random x position, spawn below screen
+            const treeX = TREE_WIDTH / 2 + Math.random() * (CANVAS_WIDTH - TREE_WIDTH);
+            trees.push({ x: treeX, y: CANVAS_HEIGHT + TREE_HEIGHT });
+        }
     }
 
     // Collision detection with trees - circular hitboxes on bottom half of sprites
@@ -768,19 +770,21 @@ function drawScoreboardScreen() {
     ctx.textAlign = 'left';
     ctx.font = '20px Fibberish';
 
-    const startY = 195;
-    const rowHeight = 28;
-    const nameX = 140;
-    const scoreX = 460;
+    const startY = 235;
+    const rowHeight = 26;
+    const nameX = 160;
+    const scoreX = 440;
 
     for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
         const entry = leaderboardData[i];
         const rowY = startY + i * rowHeight;
 
-        // Rank
+        // Dark brown outline for wooden board readability
         ctx.fillStyle = '#fff';
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#3d2314';
+        ctx.lineWidth = 3;
+
+        // Rank
         ctx.strokeText(`${i + 1}.`, nameX - 40, rowY);
         ctx.fillText(`${i + 1}.`, nameX - 40, rowY);
 
@@ -800,8 +804,8 @@ function drawScoreboardScreen() {
     ctx.textAlign = 'center';
     ctx.font = '22px Fibberish';
     ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#3d2314';
+    ctx.lineWidth = 3;
 
     const resultText = gameState.scoreType === 'time'
         ? `Your time: ${formatTime(gameState.scoreValue)}`
@@ -809,33 +813,44 @@ function drawScoreboardScreen() {
     ctx.strokeText(resultText, CANVAS_WIDTH / 2, 490);
     ctx.fillText(resultText, CANVAS_WIDTH / 2, 490);
 
-    // Name input if top 10 and not submitted
+    // Name input if top 10 and not submitted - positioned below the wooden board
     if (gameState.isTopTen && !gameState.nameSubmitted) {
-        ctx.font = '20px Fibberish';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.font = '24px Fibberish';
         ctx.fillStyle = '#4CAF50';
-        ctx.strokeText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, 530);
-        ctx.fillText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, 530);
+        ctx.strokeText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, 560);
+        ctx.fillText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, 560);
 
         ctx.fillStyle = '#fff';
         ctx.font = '18px Fibberish';
-        ctx.strokeText('Enter your name:', CANVAS_WIDTH / 2, 560);
-        ctx.fillText('Enter your name:', CANVAS_WIDTH / 2, 560);
+        ctx.strokeText('Enter your name:', CANVAS_WIDTH / 2, 600);
+        ctx.fillText('Enter your name:', CANVAS_WIDTH / 2, 600);
 
-        // Name input box
+        // Name input box (wider for 16 chars)
         ctx.fillStyle = '#fff';
-        ctx.fillRect(CANVAS_WIDTH / 2 - 80, 575, 160, 35);
+        ctx.fillRect(CANVAS_WIDTH / 2 - 120, 620, 240, 35);
         ctx.strokeStyle = '#4CAF50';
         ctx.lineWidth = 3;
-        ctx.strokeRect(CANVAS_WIDTH / 2 - 80, 575, 160, 35);
+        ctx.strokeRect(CANVAS_WIDTH / 2 - 120, 620, 240, 35);
 
         ctx.fillStyle = '#333';
         ctx.font = '22px Fibberish';
-        ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 600);
+        ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 645);
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '14px Fibberish';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.strokeText('Press ENTER to submit', CANVAS_WIDTH / 2, 680);
+        ctx.fillText('Press ENTER to submit', CANVAS_WIDTH / 2, 680);
     } else {
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
         ctx.font = '20px Fibberish';
         ctx.fillStyle = '#fff';
-        ctx.strokeText('Press SPACE to continue', CANVAS_WIDTH / 2, 550);
-        ctx.fillText('Press SPACE to continue', CANVAS_WIDTH / 2, 550);
+        ctx.strokeText('Press SPACE to continue', CANVAS_WIDTH / 2, 580);
+        ctx.fillText('Press SPACE to continue', CANVAS_WIDTH / 2, 580);
     }
 
     ctx.textAlign = 'left';
@@ -1159,7 +1174,7 @@ document.addEventListener('keydown', (e) => {
         } else if (key === 'Backspace') {
             e.preventDefault();
             gameState.playerName = gameState.playerName.slice(0, -1);
-        } else if (key.length === 1 && /[a-zA-Z0-9]/.test(key) && gameState.playerName.length < 10) {
+        } else if (key.length === 1 && /[a-zA-Z0-9]/.test(key) && gameState.playerName.length < 16) {
             gameState.playerName += key.toUpperCase();
         }
         return;

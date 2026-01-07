@@ -4,6 +4,7 @@ const LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycbwe2zV953jKE6Aq
 
 // Global leaderboard data
 let leaderboardData = [];
+let leaderboardLoading = false;
 
 // Compare scores for sorting (time > distance, lower time better, higher distance better)
 function compareScoresLeaderboard(a, b) {
@@ -23,6 +24,7 @@ async function fetchLeaderboard() {
         return [];
     }
 
+    leaderboardLoading = true;
     try {
         // Use redirect: 'follow' for Google Apps Script
         const response = await fetch(LEADERBOARD_URL, {
@@ -44,6 +46,8 @@ async function fetchLeaderboard() {
     } catch (error) {
         console.error('Error fetching leaderboard:', error);
         return [];
+    } finally {
+        leaderboardLoading = false;
     }
 }
 
@@ -58,6 +62,7 @@ async function submitScore(name, type, value) {
         return leaderboardData;
     }
 
+    leaderboardLoading = true;
     try {
         // Use POST with text/plain to avoid CORS preflight
         // Google Apps Script will parse the JSON from the text body
@@ -90,6 +95,8 @@ async function submitScore(name, type, value) {
         leaderboardData.sort(compareScoresLeaderboard);
         leaderboardData = leaderboardData.slice(0, 10);
         return leaderboardData;
+    } finally {
+        leaderboardLoading = false;
     }
 }
 

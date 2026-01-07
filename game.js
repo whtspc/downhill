@@ -100,7 +100,7 @@ const gameState = {
     // Score info for scoreboard
     scoreType: null, // 'time' or 'distance'
     scoreValue: 0,
-    isTopTen: false
+    playerRank: 0 // Player's rank after submission
 };
 
 // Transition state for fade effects
@@ -156,6 +156,9 @@ const GLIMMER_WIDTH = 80;
 
 // Start prompt pulse animation
 let pulseTime = 0;
+
+// Loading spinner animation
+let spinnerAngle = 0;
 
 // Input handling
 document.addEventListener('keydown', (e) => {
@@ -740,13 +743,11 @@ function compareScores(a, b) {
     return b.value - a.value;
 }
 
-// Check if a score would make top 10
-function isTopTenScore(type, value) {
-    if (leaderboardData.length < 10) return true;
+// Calculate what rank a score would achieve
+function calculateRank(type, value) {
     const tempEntry = { type, value, name: '' };
     const sorted = [...leaderboardData, tempEntry].sort(compareScores);
-    const rank = sorted.findIndex(e => e === tempEntry) + 1;
-    return rank <= 10;
+    return sorted.findIndex(e => e === tempEntry) + 1;
 }
 
 // Format score for display
@@ -769,32 +770,61 @@ function drawScoreboardScreen() {
 
     const startY = 235;
     const rowHeight = 26;
-    const nameX = 160;
+    const nameX = 180;
     const scoreX = 440;
 
-    for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
-        const entry = leaderboardData[i];
-        const rowY = startY + i * rowHeight;
+    // Show loading spinner or leaderboard entries
+    if (leaderboardLoading) {
+        // Draw loading spinner in center of board
+        const centerX = CANVAS_WIDTH / 2;
+        const centerY = 340;
+        const radius = 25;
 
-        // Dark brown outline for wooden board readability
+        // Update spinner angle
+        spinnerAngle += 0.1;
+
+        // Draw spinner arc
+        ctx.strokeStyle = '#3d2314';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, spinnerAngle, spinnerAngle + Math.PI * 1.5);
+        ctx.stroke();
+
+        // Draw "Loading..." text
+        ctx.textAlign = 'center';
         ctx.fillStyle = '#fff';
         ctx.strokeStyle = '#3d2314';
         ctx.lineWidth = 3;
-
-        // Rank
-        ctx.strokeText(`${i + 1}.`, nameX - 40, rowY);
-        ctx.fillText(`${i + 1}.`, nameX - 40, rowY);
-
-        // Name
-        ctx.strokeText(entry.name || '???', nameX, rowY);
-        ctx.fillText(entry.name || '???', nameX, rowY);
-
-        // Score
-        ctx.textAlign = 'right';
-        const scoreText = formatScore(entry);
-        ctx.strokeText(scoreText, scoreX, rowY);
-        ctx.fillText(scoreText, scoreX, rowY);
+        ctx.font = '22px Fibberish';
+        ctx.strokeText('Loading...', centerX, centerY + 50);
+        ctx.fillText('Loading...', centerX, centerY + 50);
         ctx.textAlign = 'left';
+    } else {
+        for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
+            const entry = leaderboardData[i];
+            const rowY = startY + i * rowHeight;
+
+            // Dark brown outline for wooden board readability
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#3d2314';
+            ctx.lineWidth = 3;
+
+            // Rank
+            ctx.strokeText(`${i + 1}.`, nameX - 40, rowY);
+            ctx.fillText(`${i + 1}.`, nameX - 40, rowY);
+
+            // Name
+            ctx.strokeText(entry.name || '???', nameX, rowY);
+            ctx.fillText(entry.name || '???', nameX, rowY);
+
+            // Score
+            ctx.textAlign = 'right';
+            const scoreText = formatScore(entry);
+            ctx.strokeText(scoreText, scoreX, rowY);
+            ctx.fillText(scoreText, scoreX, rowY);
+            ctx.textAlign = 'left';
+        }
     }
 
     // Show player's result at bottom of the board
@@ -810,44 +840,49 @@ function drawScoreboardScreen() {
     ctx.strokeText(resultText, CANVAS_WIDTH / 2, 490);
     ctx.fillText(resultText, CANVAS_WIDTH / 2, 490);
 
-    // Name input if top 10 and not submitted - positioned below the wooden board
-    if (gameState.isTopTen && !gameState.nameSubmitted) {
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.font = '24px Fibberish';
-        ctx.fillStyle = '#4CAF50';
-        ctx.strokeText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, 560);
-        ctx.fillText('NEW HIGH SCORE!', CANVAS_WIDTH / 2, 560);
+    // Name input or rank display - positioned below the wooden board
+    // Don't show controls while loading
+    if (!leaderboardLoading) {
+        if (!gameState.nameSubmitted) {
+            // Show name input for everyone
+            ctx.fillStyle = '#fff';
+            ctx.font = '18px Fibberish';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.strokeText('Enter your name:', CANVAS_WIDTH / 2, 560);
+            ctx.fillText('Enter your name:', CANVAS_WIDTH / 2, 560);
 
-        ctx.fillStyle = '#fff';
-        ctx.font = '18px Fibberish';
-        ctx.strokeText('Enter your name:', CANVAS_WIDTH / 2, 600);
-        ctx.fillText('Enter your name:', CANVAS_WIDTH / 2, 600);
+            // Name input box (wider for 16 chars)
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(CANVAS_WIDTH / 2 - 120, 580, 240, 35);
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(CANVAS_WIDTH / 2 - 120, 580, 240, 35);
 
-        // Name input box (wider for 16 chars)
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(CANVAS_WIDTH / 2 - 120, 620, 240, 35);
-        ctx.strokeStyle = '#4CAF50';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(CANVAS_WIDTH / 2 - 120, 620, 240, 35);
+            ctx.fillStyle = '#333';
+            ctx.font = '22px Fibberish';
+            ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 605);
 
-        ctx.fillStyle = '#333';
-        ctx.font = '22px Fibberish';
-        ctx.fillText(gameState.playerName + '_', CANVAS_WIDTH / 2, 645);
+            ctx.fillStyle = '#aaa';
+            ctx.font = '14px Fibberish';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.strokeText('Press ENTER to submit', CANVAS_WIDTH / 2, 640);
+            ctx.fillText('Press ENTER to submit', CANVAS_WIDTH / 2, 640);
+        } else {
+            // Show player's rank after submission
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.font = '24px Fibberish';
+            ctx.fillStyle = '#4CAF50';
+            ctx.strokeText(`You ranked #${gameState.playerRank}!`, CANVAS_WIDTH / 2, 560);
+            ctx.fillText(`You ranked #${gameState.playerRank}!`, CANVAS_WIDTH / 2, 560);
 
-        ctx.fillStyle = '#aaa';
-        ctx.font = '14px Fibberish';
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1;
-        ctx.strokeText('Press ENTER to submit', CANVAS_WIDTH / 2, 680);
-        ctx.fillText('Press ENTER to submit', CANVAS_WIDTH / 2, 680);
-    } else {
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.font = '20px Fibberish';
-        ctx.fillStyle = '#fff';
-        ctx.strokeText('Press SPACE to continue', CANVAS_WIDTH / 2, 580);
-        ctx.fillText('Press SPACE to continue', CANVAS_WIDTH / 2, 580);
+            ctx.font = '20px Fibberish';
+            ctx.fillStyle = '#fff';
+            ctx.strokeText('Press SPACE to continue', CANVAS_WIDTH / 2, 600);
+            ctx.fillText('Press SPACE to continue', CANVAS_WIDTH / 2, 600);
+        }
     }
 
     ctx.textAlign = 'left';
@@ -868,9 +903,12 @@ function startFadeTransition() {
         gameState.scoreType = 'distance';
         gameState.scoreValue = gameState.distance;
     }
-    gameState.isTopTen = isTopTenScore(gameState.scoreType, gameState.scoreValue);
     gameState.playerName = '';
     gameState.nameSubmitted = false;
+    gameState.playerRank = 0;
+
+    // Refresh leaderboard data
+    fetchLeaderboard();
 }
 
 // Update transition state
@@ -1162,9 +1200,11 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Scoreboard: name input handling (if top 10 and not submitted)
-    if (gameState.phase === 'scoreboard' && gameState.isTopTen && !gameState.nameSubmitted) {
+    // Scoreboard: name input handling (if not submitted and not loading)
+    if (gameState.phase === 'scoreboard' && !gameState.nameSubmitted && !leaderboardLoading) {
         if (key === 'Enter' && gameState.playerName.length >= 3) {
+            // Calculate rank before submitting
+            gameState.playerRank = calculateRank(gameState.scoreType, gameState.scoreValue);
             // Submit score
             submitScore(gameState.playerName, gameState.scoreType, gameState.scoreValue);
             gameState.nameSubmitted = true;
@@ -1177,8 +1217,8 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Scoreboard: SPACE to go back to menu (if not entering name or already submitted)
-    if (gameState.phase === 'scoreboard' && (!gameState.isTopTen || gameState.nameSubmitted)) {
+    // Scoreboard: SPACE to go back to menu (after submitting and not loading)
+    if (gameState.phase === 'scoreboard' && gameState.nameSubmitted && !leaderboardLoading) {
         if (key === ' ') {
             e.preventDefault();
             bgMusic.play().catch(() => {}); // Resume music

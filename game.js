@@ -770,7 +770,7 @@ function drawScoreboardScreen() {
 
     const startY = 235;
     const rowHeight = 26;
-    const nameX = 180;
+    const nameX = 195;
     const scoreX = 440;
 
     // Show loading spinner or leaderboard entries
@@ -872,16 +872,17 @@ function drawScoreboardScreen() {
         } else {
             // Show player's rank after submission
             ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.font = '24px Fibberish';
-            ctx.fillStyle = '#4CAF50';
-            ctx.strokeText(`You ranked #${gameState.playerRank}!`, CANVAS_WIDTH / 2, 560);
-            ctx.fillText(`You ranked #${gameState.playerRank}!`, CANVAS_WIDTH / 2, 560);
+            ctx.lineWidth = 4;
+            ctx.font = 'bold 32px Fibberish';
+            ctx.fillStyle = '#FFD700'; // Bright gold color
+            ctx.strokeText(`You ranked #${gameState.playerRank}!`, CANVAS_WIDTH / 2, 565);
+            ctx.fillText(`You ranked #${gameState.playerRank}!`, CANVAS_WIDTH / 2, 565);
 
+            ctx.lineWidth = 2;
             ctx.font = '20px Fibberish';
             ctx.fillStyle = '#fff';
-            ctx.strokeText('Press SPACE to continue', CANVAS_WIDTH / 2, 600);
-            ctx.fillText('Press SPACE to continue', CANVAS_WIDTH / 2, 600);
+            ctx.strokeText('Press SPACE to continue', CANVAS_WIDTH / 2, 610);
+            ctx.fillText('Press SPACE to continue', CANVAS_WIDTH / 2, 610);
         }
     }
 

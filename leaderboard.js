@@ -34,12 +34,12 @@ let leaderboardData = [];
 let leaderboardLoading = false;
 
 // Supabase client (initialized after script loads)
-let supabase = null;
+let supabaseClient = null;
 
 // Initialize Supabase client
 function initSupabase() {
     if (typeof window.supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         return true;
     }
     return false;
@@ -81,7 +81,7 @@ function compareScoresLeaderboard(a, b) {
 // Fetch leaderboard data from Supabase
 async function fetchLeaderboard() {
     // Initialize Supabase if not done yet
-    if (!supabase) {
+    if (!supabaseClient) {
         if (!initSupabase()) {
             console.log('Supabase not configured - using local data only');
             return leaderboardData;
@@ -95,7 +95,7 @@ async function fetchLeaderboard() {
 
     try {
         // Fetch all scores, we'll sort them client-side
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('leaderboard')
             .select('name, type, value, created_at')
             .order('created_at', { ascending: false })
@@ -128,7 +128,7 @@ async function fetchLeaderboard() {
 // Submit a score to the leaderboard
 async function submitScore(name, type, value) {
     // Initialize Supabase if not done yet
-    if (!supabase) {
+    if (!supabaseClient) {
         if (!initSupabase()) {
             console.log('Supabase not configured - score not submitted');
             // Add to local leaderboard for testing
@@ -143,7 +143,7 @@ async function submitScore(name, type, value) {
     leaderboardLoading = true;
     try {
         // Insert the new score
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('leaderboard')
             .insert([{ name, type, value }]);
 

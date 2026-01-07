@@ -110,7 +110,9 @@ const transitionState = {
     alpha: 0,
     startTime: 0,
     delayMs: 2000,  // 2 second delay before fade starts
-    fadeMs: 500     // 500ms fade duration
+    fadeMs: 500,    // 500ms fade duration
+    targetPhase: null, // Phase to transition to
+    onMidpoint: null   // Callback when fade out completes (before fade in)
 };
 
 // When video ends, start the actual race
@@ -770,8 +772,8 @@ function drawScoreboardScreen() {
 
     const startY = 235;
     const rowHeight = 26;
-    const nameX = 195;
-    const scoreX = 440;
+    const nameX = 210;  // More padding from left edge
+    const scoreX = 425; // More padding from right edge
 
     // Show loading spinner or leaderboard entries
     if (leaderboardLoading) {
@@ -895,6 +897,8 @@ function startFadeTransition() {
     transitionState.phase = 'fadeOut';
     transitionState.startTime = performance.now();
     transitionState.alpha = 0;
+    transitionState.targetPhase = 'scoreboard';
+    transitionState.onMidpoint = null;
 
     // Store score info
     if (gameState.phase === 'finished') {
@@ -912,6 +916,30 @@ function startFadeTransition() {
     fetchLeaderboard();
 }
 
+// Start fade transition to menu
+function startMenuTransition() {
+    transitionState.active = true;
+    transitionState.phase = 'fadeOut';
+    transitionState.startTime = performance.now();
+    transitionState.alpha = 0;
+    transitionState.targetPhase = 'menu';
+    transitionState.onMidpoint = () => {
+        // Reset game state at midpoint (when screen is black)
+        gameState.speed = 16;
+        gameState.skiAngle = 0;
+        gameState.skierX = CANVAS_WIDTH / 2;
+        gameState.gameOver = false;
+        gameState.distance = 0;
+        gameState.raceTime = 0;
+        gameState.playerName = '';
+        gameState.nameSubmitted = false;
+        trees.length = 0;
+        trailPoints.length = 0;
+        distanceSinceLastTree = 0;
+        finishLineY = null;
+    };
+}
+
 // Update transition state
 function updateTransition() {
     if (!transitionState.active) return;
@@ -921,8 +949,15 @@ function updateTransition() {
     if (transitionState.phase === 'fadeOut') {
         transitionState.alpha = Math.min(1, elapsed / transitionState.fadeMs);
         if (elapsed >= transitionState.fadeMs) {
-            // Fade out complete, switch to scoreboard phase and start fade in
-            gameState.phase = 'scoreboard';
+            // Fade out complete - run midpoint callback if set
+            if (transitionState.onMidpoint) {
+                transitionState.onMidpoint();
+                transitionState.onMidpoint = null;
+            }
+            // Switch to target phase and start fade in
+            if (transitionState.targetPhase) {
+                gameState.phase = transitionState.targetPhase;
+            }
             transitionState.phase = 'fadeIn';
             transitionState.startTime = performance.now();
         }
@@ -933,6 +968,7 @@ function updateTransition() {
             transitionState.active = false;
             transitionState.phase = 'none';
             transitionState.alpha = 0;
+            transitionState.targetPhase = null;
         }
     }
 }
@@ -1221,12 +1257,12 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Scoreboard: SPACE to go back to menu (after submitting and not loading)
-    if (gameState.phase === 'scoreboard' && gameState.nameSubmitted && !leaderboardLoading) {
+    // Scoreboard: SPACE to go back to menu (after submitting, not loading, and not already transitioning)
+    if (gameState.phase === 'scoreboard' && gameState.nameSubmitted && !leaderboardLoading && !transitionState.active) {
         if (key === ' ') {
             e.preventDefault();
             bgMusic.play().catch(() => {}); // Resume music
-            resetGame();
+            startMenuTransition();
             return;
         }
     }

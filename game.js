@@ -1107,6 +1107,9 @@ function startRace() {
     trailPoints.length = 0;
     distanceSinceLastTree = 0;
     finishLineY = null;
+
+    // Pre-fetch leaderboard while racing (warms up Google Apps Script)
+    fetchLeaderboard();
 }
 
 // Game loop

@@ -2,9 +2,34 @@
 // Replace this URL with your Google Apps Script web app URL
 const LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycbwe2zV953jKE6AqhZpgAePmnpjqCmtjLhlnjK-kGDDTj-y00G4_2zmV6bs7hMZmEFyh/exec';
 
+// Cache key for localStorage
+const LEADERBOARD_CACHE_KEY = 'downhill_leaderboard_cache';
+
 // Global leaderboard data
 let leaderboardData = [];
 let leaderboardLoading = false;
+
+// Load cached data from localStorage
+function loadCachedLeaderboard() {
+    try {
+        const cached = localStorage.getItem(LEADERBOARD_CACHE_KEY);
+        if (cached) {
+            leaderboardData = JSON.parse(cached);
+            leaderboardData.sort(compareScoresLeaderboard);
+        }
+    } catch (e) {
+        console.log('No cached leaderboard data');
+    }
+}
+
+// Save data to localStorage cache
+function saveCachedLeaderboard() {
+    try {
+        localStorage.setItem(LEADERBOARD_CACHE_KEY, JSON.stringify(leaderboardData));
+    } catch (e) {
+        console.log('Could not cache leaderboard data');
+    }
+}
 
 // Compare scores for sorting (time > distance, lower time better, higher distance better)
 function compareScoresLeaderboard(a, b) {
@@ -24,7 +49,11 @@ async function fetchLeaderboard() {
         return [];
     }
 
-    leaderboardLoading = true;
+    // Only show loading if we don't have cached data
+    if (leaderboardData.length === 0) {
+        leaderboardLoading = true;
+    }
+
     try {
         // Use redirect: 'follow' for Google Apps Script
         const response = await fetch(LEADERBOARD_URL, {
@@ -42,10 +71,12 @@ async function fetchLeaderboard() {
             value: entry.value !== undefined ? entry.value : entry.time
         }));
         leaderboardData.sort(compareScoresLeaderboard);
+        // Cache the fresh data
+        saveCachedLeaderboard();
         return leaderboardData;
     } catch (error) {
         console.error('Error fetching leaderboard:', error);
-        return [];
+        return leaderboardData; // Return cached data on error
     } finally {
         leaderboardLoading = false;
     }
@@ -59,6 +90,7 @@ async function submitScore(name, type, value) {
         leaderboardData.push({ name, type, value, date: new Date().toISOString() });
         leaderboardData.sort(compareScoresLeaderboard);
         leaderboardData = leaderboardData.slice(0, 10);
+        saveCachedLeaderboard();
         return leaderboardData;
     }
 
@@ -87,6 +119,8 @@ async function submitScore(name, type, value) {
             value: entry.value !== undefined ? entry.value : entry.time
         }));
         leaderboardData.sort(compareScoresLeaderboard);
+        // Cache the updated data
+        saveCachedLeaderboard();
         return leaderboardData;
     } catch (error) {
         console.error('Error submitting score:', error);
@@ -94,11 +128,13 @@ async function submitScore(name, type, value) {
         leaderboardData.push({ name, type, value, date: new Date().toISOString() });
         leaderboardData.sort(compareScoresLeaderboard);
         leaderboardData = leaderboardData.slice(0, 10);
+        saveCachedLeaderboard();
         return leaderboardData;
     } finally {
         leaderboardLoading = false;
     }
 }
 
-// Fetch leaderboard on page load
+// Load cached data immediately, then fetch fresh data
+loadCachedLeaderboard();
 fetchLeaderboard();

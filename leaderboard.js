@@ -1,6 +1,6 @@
 // Leaderboard API module
 // Replace this URL with your Google Apps Script web app URL
-const LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycbwpE1AYa9Hea0qVetkFWjp8BljORPxibdqihEe6dmaPbdoxxVNWVZea-s-D4J-CnYPS/exec';
+const LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycbwe2zV953jKE6AqhZpgAePmnpjqCmtjLhlnjK-kGDDTj-y00G4_2zmV6bs7hMZmEFyh/exec';
 
 // Global leaderboard data
 let leaderboardData = [];

@@ -828,8 +828,8 @@ function drawScoreboardScreen() {
     ctx.textAlign = 'left';
     ctx.font = '20px Fibberish';
 
-    const startY = 235;
-    const rowHeight = 26;
+    const startY = 220;  // Moved scores higher
+    const rowHeight = 25;
     const nameX = 210;  // More padding from left edge
     const scoreX = 425; // More padding from right edge
 
@@ -897,8 +897,8 @@ function drawScoreboardScreen() {
     const resultText = gameState.scoreType === 'time'
         ? `Your time: ${formatTime(gameState.scoreValue)}`
         : `Your distance: ${Math.floor(gameState.scoreValue)}m`;
-    ctx.strokeText(resultText, CANVAS_WIDTH / 2, 490);
-    ctx.fillText(resultText, CANVAS_WIDTH / 2, 490);
+    ctx.strokeText(resultText, CANVAS_WIDTH / 2, 515);
+    ctx.fillText(resultText, CANVAS_WIDTH / 2, 515);
 
     // Name input or rank display - positioned below the wooden board
     // Don't show controls while loading

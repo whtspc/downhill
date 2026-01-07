@@ -149,9 +149,6 @@ let distanceSinceLastTree = 0;
 // Finish line position (Y coordinate on screen, null when not visible)
 let finishLineY = null;
 
-// Leaderboard data (fetched from API)
-let leaderboardData = [];
-
 // Logo glimmer animation
 let glimmerOffset = -100; // Start position off-screen left
 const GLIMMER_SPEED = 3;

@@ -325,7 +325,7 @@ function update() {
                 // Stop music and play fall sound
                 bgMusic.pause();
                 bgMusic.currentTime = 0;
-                fallSound.currentTime = 0;
+                fallSound.currentTime = 0.5; // Skip 500ms of silence at the start
                 fallSound.play().catch(() => {});
             }
         }

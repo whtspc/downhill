@@ -7,6 +7,17 @@ const urlParams = new URLSearchParams(window.location.search);
 const DEBUG_MODE = urlParams.get('debug') === '1';
 let collisionEnabled = true; // Can be toggled with 'C' key in debug mode
 
+// Audio elements
+const bgMusic = new Audio('8-bit Winter Music  Chiptune for Retro Games  Snowy Hill (edited with Audjust) (1).mp3');
+bgMusic.loop = true;
+bgMusic.volume = 0.5;
+
+const fallSound = new Audio('fallsound.wav');
+fallSound.volume = 0.7;
+
+// Loading state
+let loadProgress = 0;
+
 // Load character sprites
 const sprites = {
     vooruit: new Image(),
@@ -77,7 +88,7 @@ const gameState = {
     keys: {},
     gameOver: false,
     // Race mode
-    phase: 'menu', // 'menu', 'startanim', 'racing', 'finished', 'crashed'
+    phase: 'loading', // 'loading', 'menu', 'startanim', 'racing', 'finished', 'crashed'
     distance: 0,
     raceStartTime: 0,
     raceTime: 0,
@@ -311,6 +322,11 @@ function update() {
             if (distance < treeRadius + skierRadius) {
                 gameState.gameOver = true;
                 gameState.phase = 'crashed';
+                // Stop music and play fall sound
+                bgMusic.pause();
+                bgMusic.currentTime = 0;
+                fallSound.currentTime = 0;
+                fallSound.play().catch(() => {});
             }
         }
     }
@@ -746,7 +762,9 @@ function render() {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // Draw based on game phase
-    if (gameState.phase === 'menu') {
+    if (gameState.phase === 'loading') {
+        drawLoadingScreen();
+    } else if (gameState.phase === 'menu') {
         drawMenuScreen();
     } else if (gameState.phase === 'startanim') {
         drawStartAnim();
@@ -768,6 +786,98 @@ function render() {
             drawCrashScreen();
         }
     }
+}
+
+// Preload all resources (images, fonts, video, audio)
+function preloadResources() {
+    const resources = [];
+    let loaded = 0;
+    const totalResources = Object.keys(sprites).length + 4; // sprites + font + video + 2 audio
+
+    const updateProgress = () => {
+        loaded++;
+        loadProgress = loaded / totalResources;
+    };
+
+    // Image promises
+    for (const sprite of Object.values(sprites)) {
+        resources.push(new Promise(resolve => {
+            if (sprite.complete) {
+                updateProgress();
+                resolve();
+            } else {
+                sprite.onload = () => { updateProgress(); resolve(); };
+                sprite.onerror = () => { updateProgress(); resolve(); }; // Continue even if image fails
+            }
+        }));
+    }
+
+    // Font promise
+    resources.push(document.fonts.ready.then(updateProgress));
+
+    // Video promise
+    resources.push(new Promise(resolve => {
+        if (startVideo.readyState >= 3) {
+            updateProgress();
+            resolve();
+        } else {
+            startVideo.addEventListener('canplaythrough', () => { updateProgress(); resolve(); }, { once: true });
+        }
+    }));
+
+    // Background music promise
+    resources.push(new Promise(resolve => {
+        if (bgMusic.readyState >= 3) {
+            updateProgress();
+            resolve();
+        } else {
+            bgMusic.addEventListener('canplaythrough', () => { updateProgress(); resolve(); }, { once: true });
+        }
+    }));
+
+    // Fall sound promise
+    resources.push(new Promise(resolve => {
+        if (fallSound.readyState >= 3) {
+            updateProgress();
+            resolve();
+        } else {
+            fallSound.addEventListener('canplaythrough', () => { updateProgress(); resolve(); }, { once: true });
+        }
+    }));
+
+    return Promise.all(resources);
+}
+
+// Draw loading screen with progress bar
+function drawLoadingScreen() {
+    // Draw background
+    ctx.fillStyle = '#e8f4f8';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Draw "LOADING..." text
+    ctx.fillStyle = '#333';
+    ctx.font = '48px Fibberish';
+    ctx.textAlign = 'center';
+    ctx.fillText('LOADING...', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
+
+    // Draw progress bar background
+    const barWidth = 300;
+    const barHeight = 20;
+    const barX = (CANVAS_WIDTH - barWidth) / 2;
+    const barY = CANVAS_HEIGHT / 2 + 20;
+    ctx.fillStyle = '#ccc';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    // Draw progress bar fill
+    ctx.fillStyle = '#3498db';
+    ctx.fillRect(barX, barY, barWidth * loadProgress, barHeight);
+
+    // Draw progress percentage
+    ctx.font = '20px Fibberish';
+    ctx.fillStyle = '#666';
+    ctx.fillText(`${Math.floor(loadProgress * 100)}%`, CANVAS_WIDTH / 2, barY + 50);
+
+    ctx.textAlign = 'left';
 }
 
 // Reset game state
@@ -879,6 +989,7 @@ document.addEventListener('keydown', (e) => {
     // Menu: SPACE to start animation
     if (gameState.phase === 'menu' && key === ' ') {
         e.preventDefault();
+        bgMusic.play().catch(() => {}); // Start music (ignore autoplay errors)
         gameState.phase = 'startanim';
         startVideo.currentTime = 0;
         startVideo.play();
@@ -888,6 +999,7 @@ document.addEventListener('keydown', (e) => {
     // Crashed: SPACE to restart
     if (gameState.phase === 'crashed' && key === ' ') {
         e.preventDefault();
+        bgMusic.play().catch(() => {}); // Resume music
         resetGame();
         return;
     }
@@ -913,5 +1025,8 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Start game
-gameLoop();
+// Start game with preloading
+gameLoop(); // Start the loop (will show loading screen)
+preloadResources().then(() => {
+    gameState.phase = 'menu';
+});

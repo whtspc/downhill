@@ -81,6 +81,9 @@ startVideo.preload = 'auto';
 startVideo.muted = true; // Muted to allow autoplay
 startVideo.playsInline = true;
 
+// Jump constants
+const JUMP_DURATION = 600; // milliseconds in the air
+
 // Game state
 const gameState = {
     speed: 16,
@@ -100,7 +103,11 @@ const gameState = {
     // Score info for scoreboard
     scoreType: null, // 'time' or 'distance'
     scoreValue: 0,
-    playerRank: 0 // Player's rank after submission
+    playerRank: 0, // Player's rank after submission
+    // Jump state
+    isJumping: false,
+    jumpStartTime: 0,
+    jumpDrift: 0 // Store drift at jump start to maintain direction
 };
 
 // Transition state for fade effects
@@ -173,11 +180,29 @@ document.addEventListener('keyup', (e) => {
 
 // Update game physics
 function update() {
+    // Check for jump end
+    if (gameState.isJumping) {
+        const jumpElapsed = performance.now() - gameState.jumpStartTime;
+        if (jumpElapsed >= JUMP_DURATION) {
+            gameState.isJumping = false;
+        }
+    }
+
+    // Check for jump start (SPACE key, not already jumping)
+    if ((gameState.keys[' '] || gameState.keys['space']) && !gameState.isJumping) {
+        gameState.isJumping = true;
+        gameState.jumpStartTime = performance.now();
+        // Store current drift to maintain during jump
+        const turnFactor = 1 - (gameState.speed / MAX_SPEED_STRAIGHT) * 0.6;
+        const effectiveAngle = gameState.skiAngle * turnFactor;
+        gameState.jumpDrift = Math.sin(effectiveAngle) * gameState.speed * 0.8;
+    }
+
     // Calculate dynamic max speed based on ski angle (interpolate between straight and turning max)
     const angleRatio = Math.abs(gameState.skiAngle) / MAX_SKI_ANGLE;
     const currentMaxSpeed = MAX_SPEED_STRAIGHT - (MAX_SPEED_STRAIGHT - MAX_SPEED_TURNING) * angleRatio;
 
-    // Speed control (S/W or Arrow Down/Up)
+    // Speed control (S/W or Arrow Down/Up) - works even while jumping
     if (gameState.keys['s'] || gameState.keys['arrowdown']) {
         gameState.speed += 0.15;
     } else if (gameState.keys['w'] || gameState.keys['arrowup']) {
@@ -190,21 +215,29 @@ function update() {
     if (gameState.speed > currentMaxSpeed) gameState.speed = currentMaxSpeed;
     if (gameState.speed < MIN_SPEED) gameState.speed = MIN_SPEED;
 
-    // Ski angle control (A/D or Arrow Left/Right)
-    if (gameState.keys['a'] || gameState.keys['arrowleft']) {
-        gameState.skiAngle -= 0.08;
-        if (gameState.skiAngle < -MAX_SKI_ANGLE) gameState.skiAngle = -MAX_SKI_ANGLE;
-    }
-    if (gameState.keys['d'] || gameState.keys['arrowright']) {
-        gameState.skiAngle += 0.08;
-        if (gameState.skiAngle > MAX_SKI_ANGLE) gameState.skiAngle = MAX_SKI_ANGLE;
+    // Ski angle control (A/D or Arrow Left/Right) - disabled while jumping
+    if (!gameState.isJumping) {
+        if (gameState.keys['a'] || gameState.keys['arrowleft']) {
+            gameState.skiAngle -= 0.08;
+            if (gameState.skiAngle < -MAX_SKI_ANGLE) gameState.skiAngle = -MAX_SKI_ANGLE;
+        }
+        if (gameState.keys['d'] || gameState.keys['arrowright']) {
+            gameState.skiAngle += 0.08;
+            if (gameState.skiAngle > MAX_SKI_ANGLE) gameState.skiAngle = MAX_SKI_ANGLE;
+        }
     }
 
-    // X-axis drift based on ski angle and speed
-    // Wider turn radius at higher speeds
-    const turnFactor = 1 - (gameState.speed / MAX_SPEED_STRAIGHT) * 0.6;
-    const effectiveAngle = gameState.skiAngle * turnFactor;
-    const drift = Math.sin(effectiveAngle) * gameState.speed * 0.8;
+    // X-axis drift - use stored drift during jump, calculate normally otherwise
+    let drift;
+    if (gameState.isJumping) {
+        // Maintain the drift from when jump started
+        drift = gameState.jumpDrift;
+    } else {
+        // Normal drift calculation based on ski angle and speed
+        const turnFactor = 1 - (gameState.speed / MAX_SPEED_STRAIGHT) * 0.6;
+        const effectiveAngle = gameState.skiAngle * turnFactor;
+        drift = Math.sin(effectiveAngle) * gameState.speed * 0.8;
+    }
 
     gameState.skierX += drift;
 
@@ -483,6 +516,8 @@ function drawSkier() {
 
     if (gameState.phase === 'crashed') {
         sprite = sprites.vallen;
+    } else if (gameState.isJumping) {
+        sprite = sprites.sprongie;
     } else if (angleAbs < gentleTurnThreshold) {
         sprite = sprites.vooruit;
     } else if (angleAbs < sharpTurnThreshold) {
@@ -495,12 +530,35 @@ function drawSkier() {
     const spriteWidth = 80;
     const spriteHeight = 80;
 
+    // Calculate jump height for visual effect (parabolic arc)
+    let jumpOffset = 0;
+    let jumpScale = 1;
+    if (gameState.isJumping) {
+        const jumpElapsed = performance.now() - gameState.jumpStartTime;
+        const jumpProgress = jumpElapsed / JUMP_DURATION; // 0 to 1
+        // Parabolic arc: highest at middle of jump
+        jumpOffset = Math.sin(jumpProgress * Math.PI) * 30; // Max 30px up
+        // Slight scale increase at peak of jump
+        jumpScale = 1 + Math.sin(jumpProgress * Math.PI) * 0.15;
+    }
+
+    // Draw shadow when jumping
+    if (gameState.isJumping && jumpOffset > 5) {
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 20, 25 * jumpScale, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
     ctx.drawImage(
         sprite,
-        x - spriteWidth / 2,
-        y - spriteHeight / 2,
-        spriteWidth,
-        spriteHeight
+        x - (spriteWidth * jumpScale) / 2,
+        y - (spriteHeight * jumpScale) / 2 - jumpOffset,
+        spriteWidth * jumpScale,
+        spriteHeight * jumpScale
     );
 }
 
@@ -1139,12 +1197,15 @@ function startRace() {
     gameState.speed = 16;
     gameState.skiAngle = 0;
     gameState.skierX = CANVAS_WIDTH / 2;
+    gameState.isJumping = false;
+    gameState.jumpStartTime = 0;
+    gameState.jumpDrift = 0;
     trees.length = 0;
     trailPoints.length = 0;
     distanceSinceLastTree = 0;
     finishLineY = null;
 
-    // Pre-fetch leaderboard while racing (warms up Google Apps Script)
+    // Pre-fetch leaderboard while racing (warms up Supabase)
     fetchLeaderboard();
 }
 
@@ -1243,11 +1304,19 @@ document.addEventListener('keydown', (e) => {
     // Scoreboard: name input handling (if not submitted and not loading)
     if (gameState.phase === 'scoreboard' && !gameState.nameSubmitted && !leaderboardLoading) {
         if (key === 'Enter' && gameState.playerName.length >= 3) {
-            // Calculate rank before submitting
-            gameState.playerRank = calculateRank(gameState.scoreType, gameState.scoreValue);
-            // Submit score
-            submitScore(gameState.playerName, gameState.scoreType, gameState.scoreValue);
+            // Submit score and calculate rank after submission completes
+            const playerName = gameState.playerName;
+            const scoreType = gameState.scoreType;
+            const scoreValue = gameState.scoreValue;
             gameState.nameSubmitted = true;
+
+            submitScore(playerName, scoreType, scoreValue).then(() => {
+                // Find player's actual position in the updated leaderboard
+                const playerIndex = leaderboardData.findIndex(e =>
+                    e.name === playerName && e.type === scoreType && Math.abs(e.value - scoreValue) < 1
+                );
+                gameState.playerRank = playerIndex >= 0 ? playerIndex + 1 : calculateRank(scoreType, scoreValue);
+            });
         } else if (key === 'Backspace') {
             e.preventDefault();
             gameState.playerName = gameState.playerName.slice(0, -1);

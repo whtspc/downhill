@@ -347,6 +347,7 @@ function update() {
     if (finishLineY !== null && finishLineY < gameState.skierY - 150) {
         gameState.phase = 'finished';
         gameState.phaseStartTime = performance.now();
+        gameState.isJumping = false; // Stop jump animation
         return; // Stop updating
     }
 
@@ -457,6 +458,7 @@ function update() {
                 gameState.gameOver = true;
                 gameState.phase = 'crashed';
                 gameState.phaseStartTime = performance.now();
+                gameState.isJumping = false; // Stop jump animation
                 // Stop music and play fall sound
                 bgMusic.pause();
                 bgMusic.currentTime = 0;

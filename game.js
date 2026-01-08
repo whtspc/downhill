@@ -150,6 +150,23 @@ startVideo.playsInline = true;
 // Jump constants
 const JUMP_DURATION = 600; // milliseconds in the air
 
+// Mobile detection
+function isMobileDevice() {
+    // User agent check
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i;
+    const isMobileUA = mobileRegex.test(userAgent.toLowerCase());
+
+    // Touch support
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+    // Screen size check
+    const isSmallScreen = window.innerWidth < 768 || window.innerHeight < 600;
+
+    // Combine: mobile if UA suggests it OR (has touch AND small screen)
+    return isMobileUA || (hasTouch && isSmallScreen);
+}
+
 // Game state
 const gameState = {
     speed: 16,
@@ -159,7 +176,7 @@ const gameState = {
     keys: {},
     gameOver: false,
     // Race mode
-    phase: 'loading', // 'loading', 'menu', 'startanim', 'racing', 'finished', 'crashed', 'scoreboard'
+    phase: 'loading', // 'loading', 'menu', 'mobile', 'startanim', 'racing', 'finished', 'crashed', 'scoreboard'
     phaseStartTime: 0, // When current phase started
     distance: 0,
     raceStartTime: 0,
@@ -237,6 +254,10 @@ let spinnerAngle = 0;
 
 // Input handling
 document.addEventListener('keydown', (e) => {
+    // Prevent any input when in mobile phase
+    if (gameState.phase === 'mobile') {
+        return;
+    }
     gameState.keys[e.key.toLowerCase()] = true;
 });
 
@@ -1057,6 +1078,111 @@ function drawScoreboardScreen() {
     ctx.textAlign = 'left';
 }
 
+// Draw mobile warning screen
+function drawMobileScreen() {
+    // Draw scoreboard background for consistent branding
+    ctx.drawImage(sprites.scoreboard, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    ctx.textAlign = 'center';
+
+    // Warning icon (large exclamation mark)
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 80px Fibberish';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.strokeText('!', CANVAS_WIDTH / 2, 120);
+    ctx.fillText('!', CANVAS_WIDTH / 2, 120);
+
+    // Main warning message (multi-line)
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px Fibberish';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#3d2314';
+    ctx.strokeText('Mobile Not Supported', CANVAS_WIDTH / 2, 180);
+    ctx.fillText('Mobile Not Supported', CANVAS_WIDTH / 2, 180);
+
+    ctx.font = '20px Fibberish';
+    ctx.lineWidth = 2;
+    ctx.strokeText('This game is not suited for', CANVAS_WIDTH / 2, 220);
+    ctx.fillText('This game is not suited for', CANVAS_WIDTH / 2, 220);
+    ctx.strokeText('mobile devices.', CANVAS_WIDTH / 2, 250);
+    ctx.fillText('mobile devices.', CANVAS_WIDTH / 2, 250);
+
+    ctx.strokeText('Please visit from a desktop', CANVAS_WIDTH / 2, 290);
+    ctx.fillText('Please visit from a desktop', CANVAS_WIDTH / 2, 290);
+    ctx.strokeText('computer to play.', CANVAS_WIDTH / 2, 320);
+    ctx.fillText('computer to play.', CANVAS_WIDTH / 2, 320);
+
+    // Leaderboard section header
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 24px Fibberish';
+    ctx.strokeStyle = '#3d2314';
+    ctx.lineWidth = 3;
+    ctx.strokeText('Top Scores', CANVAS_WIDTH / 2, 380);
+    ctx.fillText('Top Scores', CANVAS_WIDTH / 2, 380);
+
+    // Draw leaderboard entries (similar to scoreboard screen)
+    ctx.textAlign = 'left';
+    ctx.font = '18px Fibberish';
+
+    const startY = 420;
+    const rowHeight = 24;
+    const nameX = 190;
+    const scoreX = 410;
+
+    if (leaderboardLoading) {
+        // Loading spinner
+        const centerX = CANVAS_WIDTH / 2;
+        const centerY = 500;
+        const radius = 20;
+
+        spinnerAngle += 0.1;
+
+        ctx.strokeStyle = '#3d2314';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, spinnerAngle, spinnerAngle + Math.PI * 1.5);
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#3d2314';
+        ctx.lineWidth = 2;
+        ctx.font = '18px Fibberish';
+        ctx.strokeText('Loading...', centerX, centerY + 40);
+        ctx.fillText('Loading...', centerX, centerY + 40);
+    } else {
+        // Show top 8 entries (less than scoreboard to fit with message)
+        for (let i = 0; i < Math.min(leaderboardData.length, 8); i++) {
+            const entry = leaderboardData[i];
+            const rowY = startY + i * rowHeight;
+
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#3d2314';
+            ctx.lineWidth = 2;
+
+            // Rank
+            ctx.strokeText(`${i + 1}.`, nameX - 35, rowY);
+            ctx.fillText(`${i + 1}.`, nameX - 35, rowY);
+
+            // Name (truncate if too long)
+            const displayName = entry.name.length > 12 ? entry.name.slice(0, 12) + '...' : entry.name;
+            ctx.strokeText(displayName, nameX, rowY);
+            ctx.fillText(displayName, nameX, rowY);
+
+            // Score
+            ctx.textAlign = 'right';
+            const scoreText = formatScore(entry);
+            ctx.strokeText(scoreText, scoreX, rowY);
+            ctx.fillText(scoreText, scoreX, rowY);
+            ctx.textAlign = 'left';
+        }
+    }
+
+    ctx.textAlign = 'left';
+}
+
 // Start fade transition to scoreboard
 function startFadeTransition() {
     transitionState.active = true;
@@ -1156,6 +1282,8 @@ function render() {
         drawLoadingScreen();
     } else if (gameState.phase === 'menu') {
         drawMenuScreen();
+    } else if (gameState.phase === 'mobile') {
+        drawMobileScreen();
     } else if (gameState.phase === 'startanim') {
         drawStartAnim();
     } else if (gameState.phase === 'scoreboard') {
@@ -1398,6 +1526,11 @@ function updateCrashed() {
 document.addEventListener('keydown', (e) => {
     const key = e.key;
 
+    // Prevent any input when in mobile phase
+    if (gameState.phase === 'mobile') {
+        return;
+    }
+
     // Debug: Toggle collision with C key
     if (DEBUG_MODE && key.toLowerCase() === 'c') {
         collisionEnabled = !collisionEnabled;
@@ -1453,5 +1586,10 @@ document.addEventListener('keydown', (e) => {
 // Start game with preloading
 gameLoop(); // Start the loop (will show loading screen)
 preloadResources().then(() => {
-    gameState.phase = 'menu';
+    if (isMobileDevice()) {
+        gameState.phase = 'mobile';
+        fetchLeaderboard(); // Ensure leaderboard loads for mobile users
+    } else {
+        gameState.phase = 'menu';
+    }
 });
